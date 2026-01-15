@@ -515,49 +515,93 @@
 
     async function generateAUWorld(concept) {
         const charInfo = getCharacterInfo();
+        const settings = getSettings();
+        const opts = settings.genOptions || { cliche: 'allow', relation: 'first', original: 'break', mood: 'light' };
+
+        // Build dynamic guidelines based on options
+        const guidelines = [];
+        
+        // Cliche option
+        if (opts.cliche === 'subvert') {
+            guidelines.push('- SUBVERT CLICHES: Avoid predictable, textbook-like tropes. Twist expectations and create surprising turns.');
+        } else {
+            guidelines.push('- CLICHES ALLOWED: You may use classic tropes and familiar story patterns if they serve the narrative well.');
+        }
+        
+        // Original setting option
+        if (opts.original === 'break') {
+            guidelines.push('- BREAK FROM ORIGINAL: Completely reimagine characters for this AU. Their original occupation, role, or status should NOT carry over. A chef can become a librarian, a warrior can become a florist.');
+        } else {
+            guidelines.push('- REFLECT ORIGINAL: Maintain core aspects of the original characters. Their fundamental traits, skills, or occupations can be adapted to fit this AU while preserving their essence.');
+        }
+        
+        // Relationship option
+        if (opts.relation === 'first') {
+            guidelines.push('- FIRST MEETING: ' + charInfo.charName + ' and ' + charInfo.userName + ' are meeting for the first time or are strangers in this AU. Build tension and curiosity of a new encounter.');
+        } else {
+            guidelines.push('- ESTABLISHED CONNECTION: ' + charInfo.charName + ' and ' + charInfo.userName + ' already know each other in this AU. They have shared history, memories, and an existing dynamic (friends, rivals, colleagues, etc.).');
+        }
+        
+        // Mood option
+        if (opts.mood === 'light') {
+            guidelines.push('- LIGHT ATMOSPHERE: Create a bright, comedic, or heartwarming tone. Focus on humor, warmth, and lighthearted interactions.');
+        } else {
+            guidelines.push('- DARK ATMOSPHERE: Create a serious, dramatic, or intense tone. Include conflict, tension, moral complexity, and emotional weight.');
+        }
 
         const prompt = [
-            'You are a creative worldbuilding assistant. Based on the given AU (Alternate Universe) concept and character information, generate a structured AU world setting.',
+            'You are an expert creative writer and worldbuilder. Create a rich, immersive AU based on the given concept.',
+            '',
+            '## CREATIVE GUIDELINES (MUST FOLLOW)',
+            ...guidelines,
+            '- ADD DEPTH: Include contradictions, hidden aspects, and unexpected connections.',
+            '- SPECIFIC DETAILS: Use concrete, vivid details instead of generic descriptions.',
             '',
             '## AU Concept',
             concept,
             '',
             '## Character Information',
             '- Character Name: ' + charInfo.charName,
-            '- Character Description: ' + (charInfo.charDescription || 'Not provided'),
-            '- Character Personality: ' + (charInfo.charPersonality || 'Not provided'),
+            '- Original Description: ' + (charInfo.charDescription || 'Not provided'),
+            '- Original Personality: ' + (charInfo.charPersonality || 'Not provided'),
             '- Original Scenario: ' + (charInfo.charScenario || 'Not provided'),
             '',
             '## User Information',
             '- User Name: ' + charInfo.userName,
             '- User/Persona Description: ' + (charInfo.personaDescription || 'Not provided'),
             '',
-            '## Output Format (STRICTLY follow this format with these exact markers)',
-            'You MUST output in this EXACT format with [WORLD], [CHAR], [USER], [CHAR_CLOTHING], [USER_CLOTHING] markers:',
+            '## OUTPUT FORMAT (STRICTLY follow with EXACT markers)',
             '',
             '[WORLD]',
-            '(Write a detailed world setting here - the rules, atmosphere, society, key locations. 2-3 paragraphs.)',
+            '(Write EXACTLY 3 paragraphs:',
+            '- Para 1: World rules, systems, unique mechanics. What makes it different?',
+            '- Para 2: Atmosphere, culture, social dynamics, power structures, conflicts.',
+            '- Para 3: Key locations, time period, sensory details of daily life.)',
             '[/WORLD]',
             '',
             '[CHAR]',
-            "(Write " + charInfo.charName + "'s role, background, abilities, and how they fit into this AU world. Include their occupation, status, relationships. 2-3 paragraphs.)",
+            '(Write EXACTLY 2 paragraphs about ' + charInfo.charName + ':',
+            '- Para 1: Role, occupation, position. Public persona vs private self.',
+            '- Para 2: Hidden depths, struggles, desires, fears. A revealing daily habit.)',
             '[/CHAR]',
             '',
             '[USER]',
-            "(Write " + charInfo.userName + "'s role, background, and how they fit into this AU world. Include their occupation, status, relationship to " + charInfo.charName + ". 1-2 paragraphs.)",
+            '(Write EXACTLY 2 paragraphs about ' + charInfo.userName + ':',
+            '- Para 1: Independent role, background, personal story.',
+            '- Para 2: Connection to ' + charInfo.charName + ' with nuance and complexity.)',
             '[/USER]',
             '',
             '[CHAR_CLOTHING]',
-            "(Write a detailed single paragraph describing " + charInfo.charName + "'s typical clothing/outfit in this AU. Include colors, materials, accessories, and style details.)",
+            '(1 detailed paragraph: ' + charInfo.charName + "'s signature look - colors, textures, accessories, personality revealed through style.)",
             '[/CHAR_CLOTHING]',
             '',
             '[USER_CLOTHING]',
-            "(Write a detailed single paragraph describing " + charInfo.userName + "'s typical clothing/outfit in this AU. Include colors, materials, accessories, and style details.)",
+            '(1 detailed paragraph: ' + charInfo.userName + "'s attire - colors, materials, how it contrasts/complements " + charInfo.charName + "'s style.)",
             '[/USER_CLOTHING]',
             '',
-            getSettings().outputLanguage === 'korean' 
-                ? 'IMPORTANT: Write ALL content in Korean (한국어). Now generate the AU world setting:'
-                : 'IMPORTANT: Write ALL content in English. Now generate the AU world setting:'
+            settings.outputLanguage === 'korean'
+                ? 'CRITICAL: Write ALL content in Korean (한국어). Be literary and evocative. Generate now:'
+                : 'CRITICAL: Write ALL content in English. Be literary and evocative. Generate now:'
         ].join('\n');
 
         return await callAPI(prompt);
@@ -1192,6 +1236,64 @@
         }
     }
 
+
+    // Initialize generation option toggles
+    function initGenerationOptions() {
+        const optionMappings = [
+            { prefix: 'auwb-opt-cliche', key: 'cliche', buttons: ['allow', 'subvert'] },
+            { prefix: 'auwb-opt-relation', key: 'relation', buttons: ['first', 'known'] },
+            { prefix: 'auwb-opt-original', key: 'original', buttons: ['break', 'keep'] },
+            { prefix: 'auwb-opt-mood', key: 'mood', buttons: ['light', 'dark'] }
+        ];
+
+        const settings = getSettings();
+        const genOptions = settings.genOptions || {
+            cliche: 'allow',
+            relation: 'first',
+            original: 'break',
+            mood: 'light'
+        };
+
+        optionMappings.forEach(function(mapping) {
+            mapping.buttons.forEach(function(btnValue) {
+                const btn = document.getElementById(mapping.prefix + '-' + btnValue);
+                if (!btn) return;
+
+                // Set initial active state
+                if (genOptions[mapping.key] === btnValue) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+
+                // Add click handler
+                btn.addEventListener('click', function() {
+                    // Remove active from all buttons in this group
+                    mapping.buttons.forEach(function(v) {
+                        const otherBtn = document.getElementById(mapping.prefix + '-' + v);
+                        if (otherBtn) otherBtn.classList.remove('active');
+                    });
+
+                    // Add active to clicked button
+                    btn.classList.add('active');
+
+                    // Save to settings
+                    const currentSettings = getSettings();
+                    if (!currentSettings.genOptions) {
+                        currentSettings.genOptions = {
+                            cliche: 'allow',
+                            relation: 'first',
+                            original: 'break',
+                            mood: 'light'
+                        };
+                    }
+                    currentSettings.genOptions[mapping.key] = btnValue;
+                    saveSetting('genOptions', currentSettings.genOptions);
+                });
+            });
+        });
+    }
+
     function populateConnectionProfiles() {
         const select = document.getElementById('auwb-connection-profile');
         if (!select) return;
@@ -1424,6 +1526,9 @@
         }
 
         populateConnectionProfiles();
+
+        // Initialize generation option toggles
+        initGenerationOptions();
 
         const apiSourceSelect = document.getElementById('auwb-api-source');
         if (apiSourceSelect) {
