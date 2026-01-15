@@ -61,6 +61,8 @@
         characterSettings: { char: '', user: '' },
         clothingStyles: { char: '', user: '' },
         genrePrompt: '',
+        presets: [],
+        outputLanguage: 'korean',
     };
 
     function getSettings() {
@@ -163,6 +165,7 @@
             populateConnectionProfiles();
             loadSettingsToUI();
             checkApiStatus();
+            renderPresetList();
         } else {
             logError('Popup element with id "au-world-builder-popup" not found');
         }
@@ -232,6 +235,9 @@
 
         const debugToggle = document.getElementById('auwb-debug-mode');
         if (debugToggle) debugToggle.checked = settings.debugMode;
+
+        const languageSelect = document.getElementById('auwb-output-language');
+        if (languageSelect) languageSelect.value = settings.outputLanguage || 'korean';
 
         updateCharacterNames();
         log('Settings loaded to UI');
@@ -549,7 +555,9 @@
             "(Write a detailed single paragraph describing " + charInfo.userName + "'s typical clothing/outfit in this AU. Include colors, materials, accessories, and style details.)",
             '[/USER_CLOTHING]',
             '',
-            'Now generate the AU world setting:'
+            getSettings().outputLanguage === 'korean' 
+                ? 'IMPORTANT: Write ALL content in Korean (한국어). Now generate the AU world setting:'
+                : 'IMPORTANT: Write ALL content in English. Now generate the AU world setting:'
         ].join('\n');
 
         return await callAPI(prompt);
@@ -618,7 +626,9 @@
             '',
             "This prompt will guide the AI's writing style for roleplay in this AU.",
             '',
-            'Genre/Tone Prompt:'
+            getSettings().outputLanguage === 'korean'
+                ? 'IMPORTANT: Write the genre/tone prompt in Korean (한국어). Genre/Tone Prompt:'
+                : 'IMPORTANT: Write the genre/tone prompt in English. Genre/Tone Prompt:'
         ].join('\n');
 
         return await callAPI(prompt);
@@ -728,6 +738,324 @@
         }
     }
 
+    // ========== PRESET FUNCTIONS ==========
+
+    /**
+     * Generate a unique ID for presets
+     */
+    function generatePresetId() {
+        return 'preset_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    }
+
+    /**
+     * Get all saved presets
+     */
+    function getPresets() {
+        const settings = getSettings();
+        return settings.presets || [];
+    }
+
+    /**
+     * Save a new preset with current settings
+     */
+    function savePreset(name) {
+        if (!name || !name.trim()) {
+            throw new Error('Preset name is required');
+        }
+
+        const current = getAllCurrentSettings();
+        const charInfo = getCharacterInfo();
+
+        const preset = {
+            id: generatePresetId(),
+            name: name.trim(),
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            characterName: charInfo.charName,
+            data: {
+                worldSetting: current.world,
+                characterSettings: {
+                    char: current.charSetting,
+                    user: current.userSetting
+                },
+                clothingStyles: {
+                    char: current.charClothing,
+                    user: current.userClothing
+                },
+                genrePrompt: current.genrePrompt
+            }
+        };
+
+        const settings = getSettings();
+        if (!settings.presets) {
+            settings.presets = [];
+        }
+        settings.presets.push(preset);
+        saveSettings();
+
+        log('Preset saved: ' + name);
+        return preset;
+    }
+
+    /**
+     * Load a preset by ID
+     */
+    function loadPreset(presetId) {
+        const presets = getPresets();
+        const preset = presets.find(function(p) { return p.id === presetId; });
+
+        if (!preset) {
+            throw new Error('Preset not found');
+        }
+
+        const data = preset.data;
+
+        // Update settings
+        saveSetting('worldSetting', data.worldSetting || '');
+        saveSetting('characterSettings', data.characterSettings || { char: '', user: '' });
+        saveSetting('clothingStyles', data.clothingStyles || { char: '', user: '' });
+        saveSetting('genrePrompt', data.genrePrompt || '');
+
+        // Update UI
+        var worldEl = document.getElementById('auwb-world-setting-content');
+        if (worldEl) worldEl.value = data.worldSetting || '';
+
+        var charSettingEl = document.getElementById('auwb-char-setting-content');
+        if (charSettingEl) charSettingEl.value = (data.characterSettings && data.characterSettings.char) || '';
+
+        var userSettingEl = document.getElementById('auwb-user-setting-content');
+        if (userSettingEl) userSettingEl.value = (data.characterSettings && data.characterSettings.user) || '';
+
+        var charStyleEl = document.getElementById('auwb-char-style-content');
+        if (charStyleEl) charStyleEl.value = (data.clothingStyles && data.clothingStyles.char) || '';
+
+        var userStyleEl = document.getElementById('auwb-user-style-content');
+        if (userStyleEl) userStyleEl.value = (data.clothingStyles && data.clothingStyles.user) || '';
+
+        var genreEl = document.getElementById('auwb-genre-prompt');
+        if (genreEl) genreEl.value = data.genrePrompt || '';
+
+        log('Preset loaded: ' + preset.name);
+        return preset;
+    }
+
+    /**
+     * Rename a preset
+     */
+    function renamePreset(presetId, newName) {
+        if (!newName || !newName.trim()) {
+            throw new Error('New name is required');
+        }
+
+        const settings = getSettings();
+        const preset = settings.presets.find(function(p) { return p.id === presetId; });
+
+        if (!preset) {
+            throw new Error('Preset not found');
+        }
+
+        preset.name = newName.trim();
+        preset.updatedAt = new Date().toISOString();
+        saveSettings();
+
+        log('Preset renamed to: ' + newName);
+        return preset;
+    }
+
+    /**
+     * Delete a preset
+     */
+    function deletePreset(presetId) {
+        const settings = getSettings();
+        const index = settings.presets.findIndex(function(p) { return p.id === presetId; });
+
+        if (index === -1) {
+            throw new Error('Preset not found');
+        }
+
+        const deleted = settings.presets.splice(index, 1)[0];
+        saveSettings();
+
+        log('Preset deleted: ' + deleted.name);
+        return deleted;
+    }
+
+    /**
+     * Export all presets to JSON
+     */
+    function exportPresets() {
+        const presets = getPresets();
+        const exportData = {
+            version: '1.0',
+            exportDate: new Date().toISOString(),
+            type: 'au-world-builder-presets',
+            presets: presets
+        };
+
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'au-world-builder-presets-' + Date.now() + '.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        log('Exported ' + presets.length + ' presets');
+    }
+
+    /**
+     * Import presets from JSON file
+     */
+    function importPresets(fileContent) {
+        try {
+            const importData = JSON.parse(fileContent);
+
+            if (importData.type !== 'au-world-builder-presets' || !Array.isArray(importData.presets)) {
+                throw new Error('Invalid preset file format');
+            }
+
+            const settings = getSettings();
+            if (!settings.presets) {
+                settings.presets = [];
+            }
+
+            var importedCount = 0;
+            importData.presets.forEach(function(preset) {
+                // Generate new ID to avoid conflicts
+                preset.id = generatePresetId();
+                preset.name = preset.name + ' (imported)';
+                settings.presets.push(preset);
+                importedCount++;
+            });
+
+            saveSettings();
+            log('Imported ' + importedCount + ' presets');
+            return importedCount;
+        } catch (e) {
+            logError('Failed to import presets', e);
+            throw e;
+        }
+    }
+
+    /**
+     * Render the preset list in UI
+     */
+    function renderPresetList() {
+        var listEl = document.getElementById('auwb-preset-list');
+        if (!listEl) return;
+
+        var presets = getPresets();
+
+        if (presets.length === 0) {
+            listEl.innerHTML = '<div class="auwb-preset-empty">No presets saved yet.</div>';
+            return;
+        }
+
+        var html = '';
+        presets.forEach(function(preset) {
+            var date = new Date(preset.createdAt).toLocaleDateString();
+            html += '<div class="auwb-preset-item" data-preset-id="' + preset.id + '">';
+            html += '<span class="auwb-preset-name">' + escapeHtml(preset.name) + '</span>';
+            html += '<span class="auwb-preset-date">' + date + '</span>';
+            html += '<div class="auwb-preset-actions">';
+            html += '<button class="auwb-preset-btn load" title="Load"><i class="fa-solid fa-download"></i></button>';
+            html += '<button class="auwb-preset-btn rename" title="Rename"><i class="fa-solid fa-pen"></i></button>';
+            html += '<button class="auwb-preset-btn delete" title="Delete"><i class="fa-solid fa-trash"></i></button>';
+            html += '</div>';
+            html += '</div>';
+        });
+
+        listEl.innerHTML = html;
+
+        // Bind events to preset items
+        listEl.querySelectorAll('.auwb-preset-item').forEach(function(item) {
+            var presetId = item.getAttribute('data-preset-id');
+
+            item.querySelector('.auwb-preset-btn.load').addEventListener('click', function(e) {
+                e.stopPropagation();
+                try {
+                    loadPreset(presetId);
+                    showStatus('Preset loaded successfully!', 'success');
+                    renderPresetList();
+                } catch (err) {
+                    showStatus('Failed to load preset: ' + err.message, 'error');
+                }
+            });
+
+            item.querySelector('.auwb-preset-btn.rename').addEventListener('click', function(e) {
+                e.stopPropagation();
+                startRenamePreset(item, presetId);
+            });
+
+            item.querySelector('.auwb-preset-btn.delete').addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (confirm('Are you sure you want to delete this preset?')) {
+                    try {
+                        deletePreset(presetId);
+                        showStatus('Preset deleted', 'success');
+                        renderPresetList();
+                    } catch (err) {
+                        showStatus('Failed to delete preset: ' + err.message, 'error');
+                    }
+                }
+            });
+        });
+    }
+
+    /**
+     * Start inline rename for a preset
+     */
+    function startRenamePreset(itemEl, presetId) {
+        var nameEl = itemEl.querySelector('.auwb-preset-name');
+        var currentName = nameEl.textContent;
+
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'auwb-preset-name-input';
+        input.value = currentName;
+
+        nameEl.style.display = 'none';
+        itemEl.insertBefore(input, nameEl);
+        input.focus();
+        input.select();
+
+        function finishRename() {
+            var newName = input.value.trim();
+            if (newName && newName !== currentName) {
+                try {
+                    renamePreset(presetId, newName);
+                    showStatus('Preset renamed', 'success');
+                } catch (err) {
+                    showStatus('Failed to rename: ' + err.message, 'error');
+                }
+            }
+            renderPresetList();
+        }
+
+        input.addEventListener('blur', finishRename);
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                finishRename();
+            } else if (e.key === 'Escape') {
+                renderPresetList();
+            }
+        });
+    }
+
+    /**
+     * Escape HTML special characters
+     */
+    function escapeHtml(text) {
+        var div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // ========== END PRESET FUNCTIONS ==========
+
     /**
      * Register event listeners for prompt injection
      */
@@ -832,7 +1160,9 @@
             '(The updated clothing for ' + charInfo.userName + ' - if mentioned in chat, update; otherwise keep existing)',
             '[/USER_CLOTHING]',
             '',
-            'Now analyze the chat and provide the UPDATED settings:'
+            getSettings().outputLanguage === 'korean'
+                ? 'IMPORTANT: Write ALL content in Korean (한국어). Now analyze the chat and provide the UPDATED settings:'
+                : 'IMPORTANT: Write ALL content in English. Now analyze the chat and provide the UPDATED settings:'
         ].join('\n');
 
         return await callAPI(prompt);
@@ -1401,6 +1731,13 @@
             });
         }
 
+        const outputLanguageSelect = document.getElementById('auwb-output-language');
+        if (outputLanguageSelect) {
+            outputLanguageSelect.addEventListener('change', function (e) {
+                saveSetting('outputLanguage', e.target.value);
+            });
+        }
+
         const apiUrl = document.getElementById('auwb-api-url');
         if (apiUrl) {
             apiUrl.addEventListener('change', function (e) {
@@ -1435,6 +1772,67 @@
                 saveSetting('customApiTimeout', parseInt(e.target.value, 10) || 120);
             });
         }
+
+        // ========== PRESET EVENT HANDLERS ==========
+
+        const savePresetBtn = document.getElementById('auwb-save-preset-btn');
+        const presetNameInput = document.getElementById('auwb-preset-name');
+        if (savePresetBtn && presetNameInput) {
+            savePresetBtn.addEventListener('click', function () {
+                var name = presetNameInput.value.trim();
+                if (!name) {
+                    showStatus('Please enter a preset name', 'error');
+                    return;
+                }
+                try {
+                    savePreset(name);
+                    presetNameInput.value = '';
+                    showStatus('Preset saved: ' + name, 'success');
+                    renderPresetList();
+                } catch (e) {
+                    showStatus('Failed to save preset: ' + e.message, 'error');
+                }
+            });
+        }
+
+        const exportPresetsBtn = document.getElementById('auwb-export-presets');
+        if (exportPresetsBtn) {
+            exportPresetsBtn.addEventListener('click', function () {
+                try {
+                    exportPresets();
+                    showStatus('Presets exported!', 'success');
+                } catch (e) {
+                    showStatus('Failed to export presets: ' + e.message, 'error');
+                }
+            });
+        }
+
+        const importPresetsBtn = document.getElementById('auwb-import-presets');
+        const importPresetsFile = document.getElementById('auwb-import-presets-file');
+        if (importPresetsBtn && importPresetsFile) {
+            importPresetsBtn.addEventListener('click', function () {
+                importPresetsFile.click();
+            });
+            importPresetsFile.addEventListener('change', function (e) {
+                if (e.target.files && e.target.files[0]) {
+                    var reader = new FileReader();
+                    reader.onload = function (evt) {
+                        try {
+                            var count = importPresets(evt.target.result);
+                            showStatus('Imported ' + count + ' presets!', 'success');
+                            renderPresetList();
+                        } catch (err) {
+                            showStatus('Failed to import presets: ' + err.message, 'error');
+                        }
+                    };
+                    reader.readAsText(e.target.files[0]);
+                    e.target.value = '';
+                }
+            });
+        }
+
+        // Render preset list when popup opens (call it here for initial load)
+        renderPresetList();
 
         log('UI events bound successfully');
     }
