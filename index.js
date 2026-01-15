@@ -43,6 +43,11 @@
 
     const extensionFolderPath = getExtensionFolderPath();
 
+    // Auto-update state tracking
+    var autoUpdateMessageCount = 0;
+    var lastProcessedMessageId = null;
+    var isAutoUpdating = false;
+
     const defaultSettings = {
         enabled: true,
         apiSource: 'sillytavern',
@@ -643,6 +648,55 @@
         return parsed;
     }
 
+    // Apply the result from auto-update or manual update
+    function applyUpdateResult(result) {
+        var parsed = parseGeneratedContent(result);
+
+        // Save each section if it has content
+        if (parsed.world) {
+            saveSetting('worldSetting', parsed.world);
+            var worldEl = document.getElementById('auwb-world-setting-content');
+            if (worldEl) worldEl.value = parsed.world;
+        }
+        if (parsed.charSetting) {
+            var settings1 = getSettings();
+            var charSettings = settings1.characterSettings || { char: '', user: '' };
+            charSettings.char = parsed.charSetting;
+            saveSetting('characterSettings', charSettings);
+            var charEl = document.getElementById('auwb-char-setting-content');
+            if (charEl) charEl.value = parsed.charSetting;
+        }
+        if (parsed.userSetting) {
+            var settings2 = getSettings();
+            var charSettings2 = settings2.characterSettings || { char: '', user: '' };
+            charSettings2.user = parsed.userSetting;
+            saveSetting('characterSettings', charSettings2);
+            var userEl = document.getElementById('auwb-user-setting-content');
+            if (userEl) userEl.value = parsed.userSetting;
+        }
+        if (parsed.charClothing) {
+            var settings3 = getSettings();
+            var clothingStyles = settings3.clothingStyles || { char: '', user: '' };
+            clothingStyles.char = parsed.charClothing;
+            saveSetting('clothingStyles', clothingStyles);
+            var charClothingEl = document.getElementById('auwb-char-clothing-content');
+            if (charClothingEl) charClothingEl.value = parsed.charClothing;
+        }
+        if (parsed.userClothing) {
+            var settings4 = getSettings();
+            var clothingStyles2 = settings4.clothingStyles || { char: '', user: '' };
+            clothingStyles2.user = parsed.userClothing;
+            saveSetting('clothingStyles', clothingStyles2);
+            var userClothingEl = document.getElementById('auwb-user-clothing-content');
+            if (userClothingEl) userClothingEl.value = parsed.userClothing;
+        }
+
+        // Update extension prompt
+        updateExtensionPrompt();
+
+        return parsed;
+    }
+
     async function generateGenrePromptText() {
         const charInfo = getCharacterInfo();
         const settings = getSettings();
@@ -1123,10 +1177,29 @@
                 updateExtensionPrompt();
             });
 
-            // Listen for character changes
+            // Listen for character message rendered - track for auto-update
             ctx.eventSource.on(ctx.event_types.CHARACTER_MESSAGE_RENDERED, function() {
-                // Update after character is rendered to ensure context is available
+                // Update extension prompt
                 updateExtensionPrompt();
+
+                // Auto-update logic
+                var currSettings = getSettings();
+                if (!currSettings.autoUpdateEnabled) {
+                    return;
+                }
+
+                // Increment message counter
+                autoUpdateMessageCount++;
+                log('Auto-update: message count = ' + autoUpdateMessageCount + '/' + currSettings.autoUpdateInterval);
+
+                // Check if reached the interval
+                var updateInterval = currSettings.autoUpdateInterval || 5;
+                if (autoUpdateMessageCount >= updateInterval) {
+                    // Reset counter
+                    autoUpdateMessageCount = 0;
+                    // Trigger auto-update with last n messages
+                    triggerAutoUpdate(updateInterval);
+                }
             });
 
             log('Prompt injection event listeners registered');
@@ -1134,6 +1207,42 @@
         } catch (e) {
             logError('Failed to register prompt injection', e);
             return false;
+        }
+    }
+
+    // Trigger auto-update with the last n messages
+    async function triggerAutoUpdate(messageCount) {
+        if (isAutoUpdating) {
+            log('Auto-update already in progress, skipping');
+            return;
+        }
+
+        try {
+            isAutoUpdating = true;
+            var ctx = SillyTavern.getContext();
+            if (!ctx || !ctx.chat || ctx.chat.length === 0) {
+                log('No chat available for auto-update');
+                return;
+            }
+
+            var totalMessages = ctx.chat.length;
+            // Get only the last n messages (where n = messageCount)
+            var startIdx = Math.max(0, totalMessages - messageCount);
+            var endIdx = totalMessages - 1;
+
+            log('Auto-update triggered: processing messages ' + startIdx + ' to ' + endIdx + ' (' + messageCount + ' messages)');
+
+            // Call the update API
+            var result = await updateFromRange(startIdx, endIdx);
+            if (result) {
+                applyUpdateResult(result);
+                showStatus('Auto-update complete!', 'success');
+                log('Auto-update completed successfully');
+            }
+        } catch (e) {
+            logError('Auto-update failed', e);
+        } finally {
+            isAutoUpdating = false;
         }
     }
 
