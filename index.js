@@ -47,6 +47,100 @@
     var autoUpdateMessageCount = 0;
     var lastProcessedMessageId = null;
     var isAutoUpdating = false;
+    var currentChatId = null;
+
+    // Get current chat ID from SillyTavern
+    function getCurrentChatId() {
+        try {
+            var ctx = SillyTavern.getContext();
+            if (ctx && ctx.chatId) {
+                return ctx.chatId;
+            }
+            // Fallback: try to get from chat metadata
+            if (ctx && ctx.chat_metadata && ctx.chat_metadata.chat_id) {
+                return ctx.chat_metadata.chat_id;
+            }
+            // Another fallback: use character + chat file name
+            if (ctx && ctx.characters && ctx.characterId !== undefined) {
+                var charName = ctx.characters[ctx.characterId]?.name || 'unknown';
+                var chatFile = ctx.chatId || ctx.getCurrentChatId?.() || 'default';
+                return charName + '_' + chatFile;
+            }
+            return null;
+        } catch (e) {
+            logError('Failed to get current chat ID', e);
+            return null;
+        }
+    }
+
+    // Chat-specific data keys (these are stored per-chat)
+    var chatSpecificKeys = ['worldSetting', 'characterSettings', 'clothingStyles', 'genrePrompt', 'auConcept'];
+
+    // Get chat-specific data for current chat
+    function getChatData() {
+        var chatId = getCurrentChatId();
+        if (!chatId) return {};
+        
+        var settings = getSettings();
+        var allChatData = settings.chatData || {};
+        return allChatData[chatId] || {};
+    }
+
+    // Save chat-specific data for current chat
+    function saveChatData(key, value) {
+        var chatId = getCurrentChatId();
+        if (!chatId) {
+            log('No chat ID available, cannot save chat-specific data');
+            return;
+        }
+        
+        var settings = getSettings();
+        if (!settings.chatData) {
+            settings.chatData = {};
+        }
+        if (!settings.chatData[chatId]) {
+            settings.chatData[chatId] = {};
+        }
+        settings.chatData[chatId][key] = value;
+        saveSettings();
+        log('Chat data saved for ' + chatId + ': ' + key);
+    }
+
+    // Load chat data into UI
+    function loadChatDataToUI() {
+        var chatData = getChatData();
+        var chatId = getCurrentChatId();
+        log('Loading chat data for: ' + (chatId || 'no chat'));
+
+        // World setting
+        var worldEl = document.getElementById('auwb-world-setting-content');
+        if (worldEl) worldEl.value = chatData.worldSetting || '';
+
+        // Character settings
+        var charEl = document.getElementById('auwb-char-setting-content');
+        if (charEl) charEl.value = (chatData.characterSettings && chatData.characterSettings.char) || '';
+        
+        var userEl = document.getElementById('auwb-user-setting-content');
+        if (userEl) userEl.value = (chatData.characterSettings && chatData.characterSettings.user) || '';
+
+        // Clothing styles
+        var charClothingEl = document.getElementById('auwb-char-clothing-content');
+        if (charClothingEl) charClothingEl.value = (chatData.clothingStyles && chatData.clothingStyles.char) || '';
+        
+        var userClothingEl = document.getElementById('auwb-user-clothing-content');
+        if (userClothingEl) userClothingEl.value = (chatData.clothingStyles && chatData.clothingStyles.user) || '';
+
+        // Genre prompt
+        var genreEl = document.getElementById('auwb-genre-prompt-content');
+        if (genreEl) genreEl.value = chatData.genrePrompt || '';
+
+        // AU concept
+        var conceptEl = document.getElementById('auwb-au-concept');
+        if (conceptEl) conceptEl.value = chatData.auConcept || '';
+
+        // Update extension prompt
+        updateExtensionPrompt();
+    }
 
     const defaultSettings = {
         enabled: true,
@@ -68,6 +162,13 @@
         genrePrompt: '',
         presets: [],
         outputLanguage: 'korean',
+        chatData: {},
+        genOptions: {
+            cliche: 'allow',
+            relation: 'first',
+            original: 'break',
+            mood: 'light'
+        },
     };
 
     function getSettings() {
@@ -117,10 +218,18 @@
     }
 
     function saveSetting(key, value) {
-        const settings = getSettings();
-        settings[key] = value;
-        saveSettings();
-        log('Setting saved: ' + key);
+        // Check if this is a chat-specific key
+        if (chatSpecificKeys.indexOf(key) !== -1) {
+            // Save to chat-specific storage
+            saveChatData(key, value);
+            log('Chat-specific setting saved: ' + key);
+        } else {
+            // Save to global settings
+            var settings = getSettings();
+            settings[key] = value;
+            saveSettings();
+            log('Global setting saved: ' + key);
+        }
         // Update extension prompt when settings change
         if (typeof updateExtensionPrompt === 'function') {
             updateExtensionPrompt();
@@ -177,31 +286,33 @@
     }
 
     function loadSettingsToUI() {
-        const settings = getSettings();
+        var settings = getSettings();
+        var chatData = getChatData();
 
-        const enabledToggle = document.getElementById('auwb-enabled');
+        var enabledToggle = document.getElementById('auwb-enabled');
         if (enabledToggle) enabledToggle.checked = settings.enabled;
 
-        const conceptInput = document.getElementById('auwb-au-concept');
-        if (conceptInput && settings.auConcept) conceptInput.value = settings.auConcept;
+        // Load chat-specific data
+        var conceptInput = document.getElementById('auwb-au-concept');
+        if (conceptInput) conceptInput.value = chatData.auConcept || '';
 
-        const worldDisplay = document.getElementById('auwb-world-setting-content');
-        if (worldDisplay) worldDisplay.value = settings.worldSetting || '';
+        var worldDisplay = document.getElementById('auwb-world-setting-content');
+        if (worldDisplay) worldDisplay.value = chatData.worldSetting || '';
 
-        const charDisplay = document.getElementById('auwb-char-setting-content');
-        if (charDisplay) charDisplay.value = (settings.characterSettings && settings.characterSettings.char) || '';
+        var charDisplay = document.getElementById('auwb-char-setting-content');
+        if (charDisplay) charDisplay.value = (chatData.characterSettings && chatData.characterSettings.char) || '';
 
-        const userDisplay = document.getElementById('auwb-user-setting-content');
-        if (userDisplay) userDisplay.value = (settings.characterSettings && settings.characterSettings.user) || '';
+        var userDisplay = document.getElementById('auwb-user-setting-content');
+        if (userDisplay) userDisplay.value = (chatData.characterSettings && chatData.characterSettings.user) || '';
 
-        const charStyleDisplay = document.getElementById('auwb-char-style-content');
-        if (charStyleDisplay) charStyleDisplay.value = (settings.clothingStyles && settings.clothingStyles.char) || '';
+        var charStyleDisplay = document.getElementById('auwb-char-style-content');
+        if (charStyleDisplay) charStyleDisplay.value = (chatData.clothingStyles && chatData.clothingStyles.char) || '';
 
-        const userStyleDisplay = document.getElementById('auwb-user-style-content');
-        if (userStyleDisplay) userStyleDisplay.value = (settings.clothingStyles && settings.clothingStyles.user) || '';
+        var userStyleDisplay = document.getElementById('auwb-user-style-content');
+        if (userStyleDisplay) userStyleDisplay.value = (chatData.clothingStyles && chatData.clothingStyles.user) || '';
 
-        const genreDisplay = document.getElementById('auwb-genre-prompt');
-        if (genreDisplay) genreDisplay.value = settings.genrePrompt || '';
+        var genreDisplay = document.getElementById('auwb-genre-prompt');
+        if (genreDisplay) genreDisplay.value = chatData.genrePrompt || '';
 
         const apiSourceSelect = document.getElementById('auwb-api-source');
         if (apiSourceSelect) {
@@ -733,14 +844,14 @@
     }
 
     function getAllCurrentSettings() {
-        const settings = getSettings();
+        var chatData = getChatData();
         return {
-            world: (document.getElementById('auwb-world-setting-content') || {}).value || settings.worldSetting || '',
-            charSetting: (document.getElementById('auwb-char-setting-content') || {}).value || (settings.characterSettings && settings.characterSettings.char) || '',
-            userSetting: (document.getElementById('auwb-user-setting-content') || {}).value || (settings.characterSettings && settings.characterSettings.user) || '',
-            charClothing: (document.getElementById('auwb-char-style-content') || {}).value || (settings.clothingStyles && settings.clothingStyles.char) || '',
-            userClothing: (document.getElementById('auwb-user-style-content') || {}).value || (settings.clothingStyles && settings.clothingStyles.user) || '',
-            genrePrompt: (document.getElementById('auwb-genre-prompt') || {}).value || settings.genrePrompt || '',
+            world: (document.getElementById('auwb-world-setting-content') || {}).value || chatData.worldSetting || '',
+            charSetting: (document.getElementById('auwb-char-setting-content') || {}).value || (chatData.characterSettings && chatData.characterSettings.char) || '',
+            userSetting: (document.getElementById('auwb-user-setting-content') || {}).value || (chatData.characterSettings && chatData.characterSettings.user) || '',
+            charClothing: (document.getElementById('auwb-char-style-content') || {}).value || (chatData.clothingStyles && chatData.clothingStyles.char) || '',
+            userClothing: (document.getElementById('auwb-user-style-content') || {}).value || (chatData.clothingStyles && chatData.clothingStyles.user) || '',
+            genrePrompt: (document.getElementById('auwb-genre-prompt') || {}).value || chatData.genrePrompt || '',
         };
     }
 
@@ -1165,10 +1276,13 @@
                 return false;
             }
 
-            // Listen for chat changes to update the prompt
+            // Listen for chat changes - load chat-specific data
             ctx.eventSource.on(ctx.event_types.CHAT_CHANGED, function() {
-                log('Chat changed, updating extension prompt');
-                updateExtensionPrompt();
+                log('Chat changed, loading chat-specific data');
+                // Reset auto-update counter
+                autoUpdateMessageCount = 0;
+                // Load chat-specific data for the new chat
+                loadChatDataToUI();
             });
 
             // Listen for generation starts
