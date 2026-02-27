@@ -1,0 +1,11 @@
+{
+    "display_name": "AU World Builder",
+    "loading_order": 100,
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
+    "css": "style.css",
+    "author": "User",
+    "version": "2.3.0",
+    "description": "Automatically generate AU (Alternate Universe) world settings and character profiles. v2.3: selective section generation, section drag reorder, A/B test generation, What-If branches, custom refine directions, prompt preview, custom API support, performance optimizations."
+}

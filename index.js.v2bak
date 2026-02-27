@@ -1,0 +1,1920 @@
+/**
+ * AU World Builder v2.0 - SillyTavern Extension
+ * 
+ * Improvements:
+ *  #1  Multi-level fallback parsing
+ *  #2  Selective per-section regeneration
+ *  #3  History & version management with rollback
+ *  #5  Custom prompt template editor
+ *  #6  Fine-grained injection controls (position, depth, role, per-section toggles)
+ *  #7  Real-time token count in preview
+ *  #9  Smart auto-update (change detection before costly API call)
+ *  #10 Lorebook / World Info export
+ *  #11 Code architecture consolidation (single-file IIFE, src/ removed)
+ *  #12 Exponential-backoff retry for API calls
+ */
+(function () {
+    'use strict';
+
+    // ================================================================
+    // SECTION 1 — CONSTANTS & DEFAULT SETTINGS
+    // ================================================================
+    const extensionName = 'AU-World-Builder';
+    const MODULE_NAME   = 'au_world_builder_injection';
+    const MAX_HISTORY   = 20;
+    const MAX_RETRIES   = 3;
+    const RETRY_BASE_MS = 1500;
+
+    // ---- default prompt templates (users can customise via Prompt tab) ----
+    const DEFAULT_INITIAL_PROMPT = [
+        'You are an expert creative writer and worldbuilder.',
+        'Create a rich, immersive AU based on the given concept.',
+        '',
+        '{{GUIDELINES}}',
+        '',
+        '## AU Concept',
+        '{{CONCEPT}}',
+        '',
+        '## Character Information',
+        '- Name: {{CHAR_NAME}}',
+        '- Description: {{CHAR_DESC}}',
+        '- Personality: {{CHAR_PERS}}',
+        '- Scenario: {{CHAR_SCENE}}',
+        '',
+        '## User Information',
+        '- Name: {{USER_NAME}}',
+        '- Persona: {{USER_PERSONA}}',
+        '',
+        '## OUTPUT FORMAT (STRICTLY follow with EXACT markers)',
+        '',
+        '[WORLD]',
+        '(3 paragraphs: world rules / atmosphere & society / key locations & daily life)',
+        '[/WORLD]',
+        '',
+        '[CHAR]',
+        '(2 paragraphs about {{CHAR_NAME}}: role & public persona / hidden depths & habits)',
+        '[/CHAR]',
+        '',
+        '[USER]',
+        '(2 paragraphs about {{USER_NAME}}: independent role / connection to {{CHAR_NAME}})',
+        '[/USER]',
+        '',
+        '[CHAR_CLOTHING]',
+        '(1 detailed paragraph: {{CHAR_NAME}}\'s signature look)',
+        '[/CHAR_CLOTHING]',
+        '',
+        '[USER_CLOTHING]',
+        '(1 detailed paragraph: {{USER_NAME}}\'s attire)',
+        '[/USER_CLOTHING]',
+        '',
+        '{{LANG_INSTRUCTION}}'
+    ].join('\n');
+
+    const DEFAULT_UPDATE_PROMPT = [
+        'You are an expert AU content editor.',
+        'Update the existing AU settings based on recent story developments.',
+        'PRESERVE existing content; only MODIFY or ADD based on new chat messages.',
+        '',
+        '## Character Names',
+        '- Character: {{CHAR_NAME}}',
+        '- User: {{USER_NAME}}',
+        '',
+        '## EXISTING AU SETTINGS',
+        '### World: {{CURRENT_WORLD}}',
+        '### {{CHAR_NAME}}: {{CURRENT_CHAR}}',
+        '### {{USER_NAME}}: {{CURRENT_USER}}',
+        '### {{CHAR_NAME}} Clothing: {{CURRENT_CHAR_CLOTHING}}',
+        '### {{USER_NAME}} Clothing: {{CURRENT_USER_CLOTHING}}',
+        '',
+        '## CHAT MESSAGES (#{{START}} – #{{END}})',
+        '{{MESSAGES}}',
+        '',
+        '## OUTPUT (same tag format)',
+        '[WORLD]...[/WORLD]',
+        '[CHAR]...[/CHAR]',
+        '[USER]...[/USER]',
+        '[CHAR_CLOTHING]...[/CHAR_CLOTHING]',
+        '[USER_CLOTHING]...[/USER_CLOTHING]',
+        '',
+        '{{LANG_INSTRUCTION}}'
+    ].join('\n');
+
+    const DEFAULT_GENRE_PROMPT = [
+        'Based on the AU world setting below, generate a concise genre/tone prompt (2-4 sentences).',
+        '',
+        '## World Setting',
+        '{{WORLD_SETTING}}',
+        '',
+        'Cover: genre, mood/atmosphere, writing style, themes.',
+        '{{LANG_INSTRUCTION}}'
+    ].join('\n');
+
+    const DEFAULT_SECTION_PROMPT = [
+        'You are an expert AU worldbuilder.',
+        'Regenerate ONLY the {{SECTION_LABEL}} section for this AU.',
+        '',
+        '## AU Concept: {{CONCEPT}}',
+        '## Character: {{CHAR_NAME}} — {{CHAR_DESC}}',
+        '## User: {{USER_NAME}} — {{USER_PERSONA}}',
+        '',
+        '## Current World Setting (context)',
+        '{{CURRENT_WORLD}}',
+        '',
+        '## Current {{CHAR_NAME}} Setting',
+        '{{CURRENT_CHAR}}',
+        '',
+        '## Current {{USER_NAME}} Setting',
+        '{{CURRENT_USER}}',
+        '',
+        'Now regenerate ONLY the section wrapped in the tag below. Keep other context consistent.',
+        '{{SECTION_TAG}}',
+        '',
+        '{{LANG_INSTRUCTION}}'
+    ].join('\n');
+
+    const DEFAULT_SMART_ANALYSIS_PROMPT = [
+        'You are a story analyst. Read the following recent chat messages and decide whether the AU world settings need to be updated.',
+        '',
+        '## Current AU World Summary',
+        '{{WORLD_SUMMARY}}',
+        '',
+        '## Recent Messages (#{{START}} – #{{END}})',
+        '{{MESSAGES}}',
+        '',
+        'Reply with EXACTLY one of:',
+        '- UPDATE_NEEDED: <brief reason> — if there are meaningful world/character/clothing changes',
+        '- NO_UPDATE_NEEDED — if nothing significant changed',
+        '',
+        'Be strict: minor dialogue or emotions are NOT updates. Only reply with one of the two formats above.'
+    ].join('\n');
+
+    const defaultSettings = {
+        enabled: true,
+        apiSource: 'sillytavern',
+        connectionProfile: '',
+        customApiUrl: '',
+        customApiKey: '',
+        customApiModel: '',
+        customApiMaxTokens: 4000,
+        customApiTimeout: 120,
+        autoUpdateEnabled: false,
+        autoUpdateInterval: 5,
+        smartAutoUpdate: true,
+        genrePromptEnabled: false,
+        debugMode: false,
+        outputLanguage: 'korean',
+        presets: [],
+        chatData: {},
+        genOptions: { cliche: 'allow', relation: 'first', original: 'break', mood: 'light' },
+        // Injection controls (#6)
+        injectionPosition: 1,   // 0=BEFORE_MAIN, 1=IN_CHAT, 2=AFTER_MAIN
+        injectionDepth: 4,
+        injectionRole: 0,       // 0=SYSTEM, 1=USER, 2=ASSISTANT
+        sectionToggles: {
+            world: true,
+            charSetting: true,
+            userSetting: true,
+            charClothing: true,
+            userClothing: true,
+            genre: true,
+        },
+        // Custom prompts (#5)
+        customPrompts: {
+            initial: '',
+            update: '',
+            genre: '',
+            section: '',
+            smartAnalysis: '',
+        },
+    };
+
+    // ================================================================
+    // SECTION 2 — UTILITY HELPERS
+    // ================================================================
+    function log(...args) {
+        console.log('[' + extensionName + ']', ...args);
+    }
+    function logError(...args) {
+        console.error('[' + extensionName + ']', ...args);
+    }
+    function escapeHtml(text) {
+        var d = document.createElement('div');
+        d.textContent = text;
+        return d.innerHTML;
+    }
+
+    /** Rough token estimator (#7) */
+    function estimateTokens(text) {
+        if (!text) return 0;
+        var cjk = (text.match(/[\u3000-\u9fff\uac00-\ud7af\uff00-\uffef]/g) || []).length;
+        var other = text.length - cjk;
+        return Math.ceil(cjk * 0.7 + other / 4);
+    }
+
+    // ================================================================
+    // SECTION 3 — SETTINGS MANAGEMENT
+    // ================================================================
+    function getExtensionFolderPath() {
+        try {
+            var s = document.currentScript;
+            if (s && s.src) return s.src.split('?')[0].split('#')[0].replace(/\/[^/]*$/, '');
+        } catch (_) {}
+        return 'data/default-user/extensions/AU-World-Builder';
+    }
+    var extensionFolderPath = getExtensionFolderPath();
+
+    function getSettings() {
+        var ext;
+        try {
+            var ctx = SillyTavern.getContext();
+            ext = ctx && ctx.extensionSettings;
+        } catch (_) {}
+        ext = ext || window.extension_settings || {};
+        window.extension_settings = ext;
+        if (!ext[extensionName]) ext[extensionName] = {};
+        var s = ext[extensionName];
+        for (var k in defaultSettings) {
+            if (s[k] === undefined) {
+                s[k] = typeof defaultSettings[k] === 'object' && defaultSettings[k] !== null
+                    ? JSON.parse(JSON.stringify(defaultSettings[k]))
+                    : defaultSettings[k];
+            }
+        }
+        return s;
+    }
+
+    function saveSettings() {
+        try {
+            var ctx = SillyTavern.getContext();
+            if (ctx && ctx.saveSettingsDebounced) { ctx.saveSettingsDebounced(); return; }
+        } catch (_) {}
+        if (typeof saveSettingsDebounced === 'function') saveSettingsDebounced();
+    }
+
+    var chatSpecificKeys = ['worldSetting', 'characterSettings', 'clothingStyles', 'genrePrompt', 'auConcept', 'history'];
+
+    function getCurrentChatId() {
+        try {
+            var ctx = SillyTavern.getContext();
+            if (ctx.chatId) return ctx.chatId;
+            if (ctx.chat_metadata && ctx.chat_metadata.chat_id) return ctx.chat_metadata.chat_id;
+            if (ctx.characters && ctx.characterId !== undefined) {
+                return (ctx.characters[ctx.characterId]?.name || 'unknown') + '_' + (ctx.chatId || 'default');
+            }
+        } catch (_) {}
+        return null;
+    }
+
+    function getChatData() {
+        var id = getCurrentChatId();
+        if (!id) return {};
+        var s = getSettings();
+        return (s.chatData && s.chatData[id]) || {};
+    }
+
+    function saveChatData(key, value) {
+        var id = getCurrentChatId();
+        if (!id) return;
+        var s = getSettings();
+        if (!s.chatData) s.chatData = {};
+        if (!s.chatData[id]) s.chatData[id] = {};
+        s.chatData[id][key] = value;
+        saveSettings();
+    }
+
+    function saveSetting(key, value) {
+        if (chatSpecificKeys.indexOf(key) !== -1) {
+            saveChatData(key, value);
+        } else {
+            var s = getSettings();
+            s[key] = value;
+            saveSettings();
+        }
+        updateExtensionPrompt();
+    }
+
+    function loadChatDataToUI() {
+        var cd = getChatData();
+        setVal('auwb-au-concept', cd.auConcept || '');
+        setVal('auwb-world-setting-content', cd.worldSetting || '');
+        setVal('auwb-char-setting-content', (cd.characterSettings && cd.characterSettings.char) || '');
+        setVal('auwb-user-setting-content', (cd.characterSettings && cd.characterSettings.user) || '');
+        setVal('auwb-char-style-content', (cd.clothingStyles && cd.clothingStyles.char) || '');
+        setVal('auwb-user-style-content', (cd.clothingStyles && cd.clothingStyles.user) || '');
+        setVal('auwb-genre-prompt', cd.genrePrompt || '');
+        updateExtensionPrompt();
+        renderHistoryList();
+    }
+
+    function setVal(id, v) {
+        var el = document.getElementById(id);
+        if (el) el.value = v;
+    }
+
+    // ================================================================
+    // SECTION 4 — CHARACTER & CHAT INFO
+    // ================================================================
+    function getCharacterInfo() {
+        try {
+            var ctx = SillyTavern.getContext();
+            var charName = ctx.name2 || '{{char}}';
+            var userName = ctx.name1 || '{{user}}';
+            var desc = '', pers = '', scen = '', persona = '';
+            if (ctx.getCharacterCardFields) {
+                var f = ctx.getCharacterCardFields();
+                desc = f.description || '';
+                pers = f.personality || '';
+                scen = f.scenario || '';
+                persona = f.persona || '';
+            }
+            if (!desc && ctx.characters && ctx.characterId !== undefined) {
+                var c = ctx.characters[ctx.characterId];
+                if (c) { desc = c.description || ''; pers = c.personality || ''; scen = c.scenario || ''; charName = c.name || charName; }
+            }
+            return { charName: charName, userName: userName, charDescription: desc, charPersonality: pers, charScenario: scen, personaDescription: persona };
+        } catch (_) {}
+        return { charName: '{{char}}', userName: '{{user}}', charDescription: '', charPersonality: '', charScenario: '', personaDescription: '' };
+    }
+
+    function getChatMessages(startIdx, endIdx) {
+        try {
+            var ctx = SillyTavern.getContext();
+            if (!ctx.chat || !Array.isArray(ctx.chat)) return '';
+            var start = Math.max(0, startIdx);
+            var end = Math.min(ctx.chat.length - 1, endIdx);
+            var msgs = [];
+            for (var i = start; i <= end; i++) {
+                var m = ctx.chat[i];
+                if (m && m.mes) msgs.push((m.is_user ? (ctx.name1 || 'User') : (ctx.name2 || 'Character')) + ': ' + m.mes);
+            }
+            return msgs.join('\n\n');
+        } catch (_) {}
+        return '';
+    }
+
+    function getChatLength() {
+        try { return SillyTavern.getContext().chat.length; } catch (_) { return 0; }
+    }
+
+    function getAllCurrentSettings() {
+        var cd = getChatData();
+        return {
+            world: getElVal('auwb-world-setting-content') || cd.worldSetting || '',
+            charSetting: getElVal('auwb-char-setting-content') || (cd.characterSettings && cd.characterSettings.char) || '',
+            userSetting: getElVal('auwb-user-setting-content') || (cd.characterSettings && cd.characterSettings.user) || '',
+            charClothing: getElVal('auwb-char-style-content') || (cd.clothingStyles && cd.clothingStyles.char) || '',
+            userClothing: getElVal('auwb-user-style-content') || (cd.clothingStyles && cd.clothingStyles.user) || '',
+            genrePrompt: getElVal('auwb-genre-prompt') || cd.genrePrompt || '',
+        };
+    }
+
+    function getElVal(id) { var el = document.getElementById(id); return el ? el.value : ''; }
+
+    // ================================================================
+    // SECTION 5 — CONNECTION PROFILES
+    // ================================================================
+    function getConnectionProfiles() {
+        try {
+            var ctx = SillyTavern.getContext();
+            if (ctx.extensionSettings && ctx.extensionSettings.connectionManager)
+                return ctx.extensionSettings.connectionManager.profiles || [];
+        } catch (_) {}
+        try {
+            if (window.extension_settings && window.extension_settings.connectionManager)
+                return window.extension_settings.connectionManager.profiles || [];
+        } catch (_) {}
+        return [];
+    }
+
+    function getCurrentProfileName() {
+        try {
+            var ctx = SillyTavern.getContext();
+            var cm = ctx.extensionSettings && ctx.extensionSettings.connectionManager;
+            if (cm && cm.selectedProfile) {
+                var p = cm.profiles.find(function (x) { return x.id === cm.selectedProfile; });
+                return p ? p.name : null;
+            }
+        } catch (_) {}
+        return null;
+    }
+
+    function getProfileNameById(id) {
+        try {
+            var ctx = SillyTavern.getContext();
+            var cm = ctx.extensionSettings && ctx.extensionSettings.connectionManager;
+            if (cm) { var p = cm.profiles.find(function (x) { return x.id === id; }); return p ? p.name : null; }
+        } catch (_) {}
+        return null;
+    }
+
+    async function switchToProfile(name) {
+        if (!name) return false;
+        try {
+            var ctx = SillyTavern.getContext();
+            var fn = ctx.executeSlashCommandsWithOptions || ctx.executeSlashCommands;
+            if (fn) { await fn('/profile ' + name); await new Promise(function (r) { setTimeout(r, 1500); }); return true; }
+        } catch (_) {}
+        return false;
+    }
+
+    // ================================================================
+    // SECTION 6 — API WITH RETRY  (#12)
+    // ================================================================
+    async function callAPI(prompt) {
+        var settings = getSettings();
+        var selectedId = settings.connectionProfile;
+        var originalProfile = null, switched = false;
+        try {
+            if (selectedId) {
+                var target = getProfileNameById(selectedId);
+                if (target) {
+                    originalProfile = getCurrentProfileName();
+                    if (originalProfile !== target) switched = await switchToProfile(target);
+                }
+            }
+            var result = '';
+            var ctx = SillyTavern.getContext();
+            if (ctx.generateRaw) {
+                result = await ctx.generateRaw({ prompt: prompt, maxContext: null, quietToLoud: false, skipWIAN: true, skipAN: true });
+            } else if (ctx.generateQuietPrompt) {
+                result = await ctx.generateQuietPrompt(prompt, false, false);
+            }
+            if (!result && typeof generateQuietPrompt === 'function') {
+                result = await generateQuietPrompt(prompt, false, false);
+            }
+            if (!result) throw new Error('No API function available or empty result');
+            return result;
+        } finally {
+            if (switched && originalProfile) await switchToProfile(originalProfile);
+        }
+    }
+
+    /** Retry wrapper with exponential backoff (#12) */
+    async function callAPIWithRetry(prompt, retries) {
+        if (retries === undefined) retries = MAX_RETRIES;
+        var lastErr;
+        for (var attempt = 0; attempt < retries; attempt++) {
+            try {
+                return await callAPI(prompt);
+            } catch (e) {
+                lastErr = e;
+                if (attempt < retries - 1) {
+                    var delay = RETRY_BASE_MS * Math.pow(2, attempt);
+                    log('API retry ' + (attempt + 1) + '/' + retries + ' in ' + delay + 'ms — ' + e.message);
+                    showStatus('API 재시도 중 (' + (attempt + 1) + '/' + retries + ')…', 'info');
+                    await new Promise(function (r) { setTimeout(r, delay); });
+                }
+            }
+        }
+        throw lastErr;
+    }
+
+    async function testApiConnection() {
+        var r = await callAPIWithRetry("Test connection. Reply with 'OK'.", 1);
+        if (r) return true;
+        throw new Error('Empty result');
+    }
+
+    // ================================================================
+    // SECTION 7 — ROBUST PARSING  (#1)
+    // ================================================================
+    function parseGeneratedContent(content) {
+        if (!content) return emptyParsed();
+
+        // Level 1 — [TAG]...[/TAG]
+        var p = parseWithTags(content);
+        if (hasAny(p)) return p;
+
+        // Level 2 — Markdown headers  #World / ##char etc.
+        p = parseWithMarkdown(content);
+        if (hasAny(p)) return p;
+
+        // Level 3 — --- separators + numbered sections
+        p = parseWithSeparators(content);
+        if (hasAny(p)) return p;
+
+        // Level 4 — Best-effort: whole text → world
+        log('Parsing: all strategies failed, treating entire output as world setting');
+        return { world: content.trim(), charSetting: '', userSetting: '', charClothing: '', userClothing: '' };
+    }
+
+    function emptyParsed() { return { world: '', charSetting: '', userSetting: '', charClothing: '', userClothing: '' }; }
+    function hasAny(p) { return !!(p.world || p.charSetting || p.userSetting); }
+
+    function parseWithTags(c) {
+        var p = emptyParsed();
+        var m;
+        m = c.match(/\[WORLD\]([\s\S]*?)\[\/WORLD\]/i);              if (m) p.world = m[1].trim();
+        m = c.match(/\[CHAR\]([\s\S]*?)\[\/CHAR\]/i);                if (m) p.charSetting = m[1].trim();
+        m = c.match(/\[USER\]([\s\S]*?)\[\/USER\]/i);                if (m) p.userSetting = m[1].trim();
+        m = c.match(/\[CHAR_CLOTHING\]([\s\S]*?)\[\/CHAR_CLOTHING\]/i); if (m) p.charClothing = m[1].trim();
+        m = c.match(/\[USER_CLOTHING\]([\s\S]*?)\[\/USER_CLOTHING\]/i); if (m) p.userClothing = m[1].trim();
+
+        // Also try [WORLD_SETTING] variant
+        if (!p.world) { m = c.match(/\[WORLD_SETTING\]([\s\S]*?)\[\/WORLD_SETTING\]/i); if (m) p.world = m[1].trim(); }
+        if (!p.world) { m = c.match(/\[WORLD_SETTING\]([\s\S]*?)(?=\[CHARACTER_|$)/i); if (m) p.world = m[1].trim(); }
+        if (!p.charSetting) { m = c.match(/\[CHARACTER_CHAR\]([\s\S]*?)(?=\[CHARACTER_USER\]|\[STYLE_|\[|$)/i); if (m) p.charSetting = m[1].trim(); }
+        if (!p.userSetting) { m = c.match(/\[CHARACTER_USER\]([\s\S]*?)(?=\[STYLE_|\[|$)/i); if (m) p.userSetting = m[1].trim(); }
+        if (!p.charClothing) { m = c.match(/\[STYLE_CHAR\]([\s\S]*?)(?=\[STYLE_USER\]|\[|$)/i); if (m) p.charClothing = m[1].trim(); }
+        if (!p.userClothing) { m = c.match(/\[STYLE_USER\]([\s\S]*?)(?=\[|$)/i); if (m) p.userClothing = m[1].trim(); }
+        return p;
+    }
+
+    function parseWithMarkdown(c) {
+        var p = emptyParsed();
+        // #World Setting  /  ##char / ##user / #Clothing etc.
+        var worldM = c.match(/#+\s*(?:World\s*Setting|세계관\s*설정|World\s*Overview)([\s\S]*?)(?=#+\s*(?:Character|캐릭터)|$)/i);
+        if (worldM) p.world = cleanSection(worldM[1]);
+
+        var ci = getCharacterInfo();
+        var charRe = new RegExp('#+\\s*(?:' + escapeRegex(ci.charName) + '|\\{\\{char\\}\\})(?:\\s*(?:설정|Setting|Profile))?([\\s\\S]*?)(?=#+|$)', 'i');
+        var userRe = new RegExp('#+\\s*(?:' + escapeRegex(ci.userName) + '|\\{\\{user\\}\\})(?:\\s*(?:설정|Setting|Profile))?([\\s\\S]*?)(?=#+|$)', 'i');
+
+        var charM = c.match(charRe);
+        if (charM) { p.charSetting = cleanSection(charM[1]); }
+
+        // Try again after char match position for user
+        var userM = c.match(userRe);
+        if (userM) p.userSetting = cleanSection(userM[1]);
+
+        var clothM = c.match(/#+\s*(?:Character\s*Clothing|Clothing\s*Styles?|복장)([\s\S]*?)$/i);
+        if (clothM) {
+            var clothText = clothM[1];
+            var charClothRe = new RegExp('#+\\s*(?:' + escapeRegex(ci.charName) + '|\\{\\{char\\}\\})[\\s\S]*?style([\\s\\S]*?)(?=#+|$)', 'i');
+            var userClothRe = new RegExp('#+\\s*(?:' + escapeRegex(ci.userName) + '|\\{\\{user\\}\\})[\\s\S]*?style([\\s\\S]*?)(?=#+|$)', 'i');
+            var ccm = clothText.match(charClothRe); if (ccm) p.charClothing = cleanSection(ccm[1]);
+            var ucm = clothText.match(userClothRe); if (ucm) p.userClothing = cleanSection(ucm[1]);
+        }
+        return p;
+    }
+
+    function parseWithSeparators(c) {
+        var p = emptyParsed();
+        var sections = c.split(/---+/).map(function (s) { return s.trim(); }).filter(Boolean);
+        if (sections.length >= 2) {
+            p.world = cleanSection(sections[0]);
+            if (sections.length >= 3) {
+                p.charSetting = cleanSection(sections[1]);
+                p.userSetting = cleanSection(sections[2]);
+            } else {
+                p.charSetting = cleanSection(sections[1]);
+            }
+            if (sections.length >= 5) {
+                p.charClothing = cleanSection(sections[3]);
+                p.userClothing = cleanSection(sections[4]);
+            }
+        }
+        // Also try numbered style: 1. ... 2. ... 3. ...
+        if (!hasAny(p)) {
+            var numbered = c.split(/\n(?=\d+\.\s)/).map(function (s) { return s.replace(/^\d+\.\s*/, '').trim(); }).filter(Boolean);
+            if (numbered.length >= 2) {
+                p.world = numbered[0];
+                p.charSetting = numbered[1] || '';
+                p.userSetting = numbered[2] || '';
+                p.charClothing = numbered[3] || '';
+                p.userClothing = numbered[4] || '';
+            }
+        }
+        return p;
+    }
+
+    function cleanSection(text) {
+        return (text || '').replace(/^#+\s*.+$/m, '').replace(/^---+$/gm, '').trim();
+    }
+    function escapeRegex(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+    // ================================================================
+    // SECTION 8 — TOKEN ESTIMATION  (#7)
+    // ================================================================
+    function getInjectionTokenInfo() {
+        var text = buildInjectionText();
+        return { text: text, tokens: estimateTokens(text) };
+    }
+
+    // ================================================================
+    // SECTION 9 — HISTORY MANAGEMENT  (#3)
+    // ================================================================
+    function getHistory() {
+        var cd = getChatData();
+        return cd.history || [];
+    }
+
+    function saveToHistory(type, snapshot) {
+        var cd = getChatData();
+        var history = cd.history || [];
+        history.unshift({
+            id: Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+            timestamp: Date.now(),
+            type: type,
+            snapshot: JSON.parse(JSON.stringify(snapshot))
+        });
+        if (history.length > MAX_HISTORY) history = history.slice(0, MAX_HISTORY);
+        saveChatData('history', history);
+    }
+
+    function rollbackToVersion(historyId) {
+        var history = getHistory();
+        var entry = history.find(function (h) { return h.id === historyId; });
+        if (!entry) { showStatus('히스토리 항목을 찾을 수 없습니다.', 'error'); return; }
+
+        var snap = entry.snapshot;
+        if (snap.world !== undefined) saveChatData('worldSetting', snap.world);
+        if (snap.charSetting !== undefined || snap.userSetting !== undefined) {
+            saveChatData('characterSettings', { char: snap.charSetting || '', user: snap.userSetting || '' });
+        }
+        if (snap.charClothing !== undefined || snap.userClothing !== undefined) {
+            saveChatData('clothingStyles', { char: snap.charClothing || '', user: snap.userClothing || '' });
+        }
+        if (snap.genrePrompt !== undefined) saveChatData('genrePrompt', snap.genrePrompt);
+
+        loadChatDataToUI();
+        updateExtensionPrompt();
+        showStatus('버전이 복원되었습니다!', 'success');
+    }
+
+    // ================================================================
+    // SECTION 10 — CONTENT GENERATION  (#2 selective regen)
+    // ================================================================
+    function getPromptTemplate(key) {
+        var s = getSettings();
+        var custom = s.customPrompts && s.customPrompts[key];
+        if (custom && custom.trim()) return custom;
+        switch (key) {
+            case 'initial': return DEFAULT_INITIAL_PROMPT;
+            case 'update': return DEFAULT_UPDATE_PROMPT;
+            case 'genre': return DEFAULT_GENRE_PROMPT;
+            case 'section': return DEFAULT_SECTION_PROMPT;
+            case 'smartAnalysis': return DEFAULT_SMART_ANALYSIS_PROMPT;
+            default: return '';
+        }
+    }
+
+    function buildGuidelines() {
+        var s = getSettings();
+        var opts = s.genOptions || {};
+        var ci = getCharacterInfo();
+        var g = [];
+        g.push(opts.cliche === 'subvert'
+            ? '- SUBVERT CLICHES: Twist expectations and avoid predictable tropes.'
+            : '- CLICHES ALLOWED: Classic tropes are fine if they serve the narrative.');
+        g.push(opts.original === 'break'
+            ? '- BREAK FROM ORIGINAL: Completely reimagine characters. Roles/occupations should NOT carry over.'
+            : '- REFLECT ORIGINAL: Preserve core traits while adapting to the AU.');
+        g.push(opts.relation === 'first'
+            ? '- FIRST MEETING: ' + ci.charName + ' and ' + ci.userName + ' are strangers.'
+            : '- ESTABLISHED CONNECTION: They already know each other.');
+        g.push(opts.mood === 'light'
+            ? '- LIGHT ATMOSPHERE: Bright, comedic, heartwarming.'
+            : '- DARK ATMOSPHERE: Serious, dramatic, intense.');
+        g.push('- ADD DEPTH: Contradictions, hidden aspects, unexpected connections.');
+        g.push('- SPECIFIC DETAILS: Concrete, vivid — avoid generic descriptions.');
+        return g.join('\n');
+    }
+
+    function getLangInstruction() {
+        return getSettings().outputLanguage === 'korean'
+            ? 'CRITICAL: Write ALL content in Korean (한국어). Be literary and evocative.'
+            : 'CRITICAL: Write ALL content in English. Be literary and evocative.';
+    }
+
+    function fillTemplate(tmpl, vars) {
+        for (var k in vars) tmpl = tmpl.split('{{' + k + '}}').join(vars[k] || '');
+        return tmpl;
+    }
+
+    async function generateAUWorld(concept) {
+        var ci = getCharacterInfo();
+        var prompt = fillTemplate(getPromptTemplate('initial'), {
+            GUIDELINES: buildGuidelines(),
+            CONCEPT: concept,
+            CHAR_NAME: ci.charName,
+            CHAR_DESC: ci.charDescription || 'Not provided',
+            CHAR_PERS: ci.charPersonality || 'Not provided',
+            CHAR_SCENE: ci.charScenario || 'Not provided',
+            USER_NAME: ci.userName,
+            USER_PERSONA: ci.personaDescription || 'Not provided',
+            LANG_INSTRUCTION: getLangInstruction(),
+        });
+        return await callAPIWithRetry(prompt);
+    }
+
+    /** Selective section regeneration (#2) */
+    async function regenerateSection(sectionKey) {
+        var ci = getCharacterInfo();
+        var cur = getAllCurrentSettings();
+        var cd = getChatData();
+
+        var labelMap = {
+            world: 'World Setting (세계관)',
+            charSetting: ci.charName + ' Character Setting',
+            userSetting: ci.userName + ' Character Setting',
+            charClothing: ci.charName + ' Clothing Style',
+            userClothing: ci.userName + ' Clothing Style',
+        };
+        var tagMap = {
+            world: '[WORLD]\n(3 paragraphs about the world)\n[/WORLD]',
+            charSetting: '[CHAR]\n(2 paragraphs about ' + ci.charName + ')\n[/CHAR]',
+            userSetting: '[USER]\n(2 paragraphs about ' + ci.userName + ')\n[/USER]',
+            charClothing: '[CHAR_CLOTHING]\n(1 paragraph about ' + ci.charName + "'" + 's clothing)\n[/CHAR_CLOTHING]',
+            userClothing: '[USER_CLOTHING]\n(1 paragraph about ' + ci.userName + "'" + 's clothing)\n[/USER_CLOTHING]',
+        };
+
+        var prompt = fillTemplate(getPromptTemplate('section'), {
+            SECTION_LABEL: labelMap[sectionKey] || sectionKey,
+            CONCEPT: cd.auConcept || '',
+            CHAR_NAME: ci.charName,
+            CHAR_DESC: ci.charDescription || '',
+            USER_NAME: ci.userName,
+            USER_PERSONA: ci.personaDescription || '',
+            CURRENT_WORLD: cur.world || '(not yet)',
+            CURRENT_CHAR: cur.charSetting || '(not yet)',
+            CURRENT_USER: cur.userSetting || '(not yet)',
+            SECTION_TAG: tagMap[sectionKey] || '',
+            LANG_INSTRUCTION: getLangInstruction(),
+        });
+
+        var result = await callAPIWithRetry(prompt);
+        if (!result) throw new Error('Empty response');
+
+        // Parse the single section from result
+        var parsed = parseGeneratedContent(result);
+        var value = '';
+        switch (sectionKey) {
+            case 'world': value = parsed.world || result.trim(); break;
+            case 'charSetting': value = parsed.charSetting || result.trim(); break;
+            case 'userSetting': value = parsed.userSetting || result.trim(); break;
+            case 'charClothing': value = parsed.charClothing || result.trim(); break;
+            case 'userClothing': value = parsed.userClothing || result.trim(); break;
+        }
+        return { section: sectionKey, value: value };
+    }
+
+    // ================================================================
+    // SECTION 11 — UPDATE SYSTEM (manual + smart auto)  (#9)
+    // ================================================================
+    var autoUpdateMessageCount = 0;
+    var isAutoUpdating = false;
+
+    async function updateFromRange(startIdx, endIdx) {
+        var chatContent = getChatMessages(startIdx, endIdx);
+        if (!chatContent) throw new Error('No messages found in the specified range.');
+        var ci = getCharacterInfo();
+        var cur = getAllCurrentSettings();
+        var prompt = fillTemplate(getPromptTemplate('update'), {
+            CHAR_NAME: ci.charName,
+            USER_NAME: ci.userName,
+            CURRENT_WORLD: cur.world || '(Not yet established)',
+            CURRENT_CHAR: cur.charSetting || '(Not yet established)',
+            CURRENT_USER: cur.userSetting || '(Not yet established)',
+            CURRENT_CHAR_CLOTHING: cur.charClothing || '(Not yet established)',
+            CURRENT_USER_CLOTHING: cur.userClothing || '(Not yet established)',
+            START: String(startIdx),
+            END: String(endIdx),
+            MESSAGES: chatContent,
+            LANG_INSTRUCTION: getLangInstruction(),
+        });
+        return await callAPIWithRetry(prompt);
+    }
+
+    /** Smart analysis before update (#9) */
+    async function shouldUpdate(startIdx, endIdx) {
+        var s = getSettings();
+        if (!s.smartAutoUpdate) return true;  // skip analysis if disabled
+        try {
+            var chatContent = getChatMessages(startIdx, endIdx);
+            if (!chatContent) return false;
+            var cur = getAllCurrentSettings();
+            var summary = (cur.world || '').substring(0, 300);
+            var prompt = fillTemplate(getPromptTemplate('smartAnalysis'), {
+                WORLD_SUMMARY: summary || '(no world yet)',
+                START: String(startIdx),
+                END: String(endIdx),
+                MESSAGES: chatContent,
+            });
+            var result = await callAPIWithRetry(prompt, 1);
+            if (result && result.toUpperCase().indexOf('NO_UPDATE_NEEDED') !== -1) {
+                log('Smart analysis: no update needed');
+                return false;
+            }
+            log('Smart analysis: update needed — ' + (result || '').substring(0, 100));
+            return true;
+        } catch (e) {
+            log('Smart analysis failed, proceeding with update: ' + e.message);
+            return true;
+        }
+    }
+
+    async function triggerAutoUpdate(messageCount) {
+        if (isAutoUpdating) return;
+        isAutoUpdating = true;
+        try {
+            var total = getChatLength();
+            if (total === 0) return;
+            var startIdx = Math.max(0, total - messageCount);
+            var endIdx = total - 1;
+
+            var needed = await shouldUpdate(startIdx, endIdx);
+            if (!needed) {
+                showStatus('스마트 분석: 업데이트 불필요 — 건너뜀', 'info');
+                return;
+            }
+
+            log('Auto-update: messages ' + startIdx + '–' + endIdx);
+            var result = await updateFromRange(startIdx, endIdx);
+            if (result) {
+                applyUpdateResult(result, 'auto-update');
+                showStatus('자동 업데이트 완료!', 'success');
+            }
+        } catch (e) {
+            logError('Auto-update failed', e);
+        } finally {
+            isAutoUpdating = false;
+        }
+    }
+
+    function applyUpdateResult(result, type) {
+        // Save history first
+        var before = getAllCurrentSettings();
+        saveToHistory(type || 'update', before);
+
+        var parsed = parseGeneratedContent(result);
+        if (parsed.world) {
+            saveSetting('worldSetting', parsed.world);
+            setVal('auwb-world-setting-content', parsed.world);
+        }
+        if (parsed.charSetting) {
+            var cs = getChatData().characterSettings || { char: '', user: '' };
+            cs.char = parsed.charSetting;
+            saveSetting('characterSettings', cs);
+            setVal('auwb-char-setting-content', parsed.charSetting);
+        }
+        if (parsed.userSetting) {
+            var cs2 = getChatData().characterSettings || { char: '', user: '' };
+            cs2.user = parsed.userSetting;
+            saveSetting('characterSettings', cs2);
+            setVal('auwb-user-setting-content', parsed.userSetting);
+        }
+        if (parsed.charClothing) {
+            var cl = getChatData().clothingStyles || { char: '', user: '' };
+            cl.char = parsed.charClothing;
+            saveSetting('clothingStyles', cl);
+            setVal('auwb-char-style-content', parsed.charClothing);
+        }
+        if (parsed.userClothing) {
+            var cl2 = getChatData().clothingStyles || { char: '', user: '' };
+            cl2.user = parsed.userClothing;
+            saveSetting('clothingStyles', cl2);
+            setVal('auwb-user-style-content', parsed.userClothing);
+        }
+        updateExtensionPrompt();
+        renderHistoryList();
+    }
+
+    // ================================================================
+    // SECTION 12 — GENRE PROMPT
+    // ================================================================
+    async function generateGenrePromptText() {
+        var cur = getAllCurrentSettings();
+        if (!cur.world) throw new Error('세계관 설정을 먼저 생성해 주세요.');
+        var prompt = fillTemplate(getPromptTemplate('genre'), {
+            WORLD_SETTING: cur.world,
+            LANG_INSTRUCTION: getLangInstruction(),
+        });
+        return await callAPIWithRetry(prompt);
+    }
+
+    // ================================================================
+    // SECTION 13 — CUSTOM PROMPT MANAGEMENT  (#5)
+    // ================================================================
+    function loadCustomPromptsToUI() {
+        var s = getSettings();
+        var cp = s.customPrompts || {};
+        setVal('auwb-custom-initial-prompt', cp.initial || '');
+        setVal('auwb-custom-update-prompt', cp.update || '');
+        setVal('auwb-custom-genre-prompt', cp.genre || '');
+        setVal('auwb-custom-section-prompt', cp.section || '');
+        setVal('auwb-custom-analysis-prompt', cp.smartAnalysis || '');
+    }
+
+    function saveCustomPrompts() {
+        var s = getSettings();
+        s.customPrompts = {
+            initial: getElVal('auwb-custom-initial-prompt'),
+            update: getElVal('auwb-custom-update-prompt'),
+            genre: getElVal('auwb-custom-genre-prompt'),
+            section: getElVal('auwb-custom-section-prompt'),
+            smartAnalysis: getElVal('auwb-custom-analysis-prompt'),
+        };
+        saveSettings();
+        showStatus('프롬프트 템플릿이 저장되었습니다!', 'success');
+    }
+
+    function resetPromptTemplate(key) {
+        var defaults = {
+            initial: DEFAULT_INITIAL_PROMPT,
+            update: DEFAULT_UPDATE_PROMPT,
+            genre: DEFAULT_GENRE_PROMPT,
+            section: DEFAULT_SECTION_PROMPT,
+            smartAnalysis: DEFAULT_SMART_ANALYSIS_PROMPT,
+        };
+        var idMap = {
+            initial: 'auwb-custom-initial-prompt',
+            update: 'auwb-custom-update-prompt',
+            genre: 'auwb-custom-genre-prompt',
+            section: 'auwb-custom-section-prompt',
+            smartAnalysis: 'auwb-custom-analysis-prompt',
+        };
+        setVal(idMap[key], defaults[key] || '');
+        var s = getSettings();
+        if (s.customPrompts) s.customPrompts[key] = '';
+        saveSettings();
+        showStatus('기본 템플릿으로 초기화되었습니다.', 'success');
+    }
+
+    // ================================================================
+    // SECTION 14 — INJECTION SYSTEM  (#6)
+    // ================================================================
+    function buildInjectionText() {
+        var settings = getSettings();
+        if (!settings.enabled) return '';
+        var cur = getAllCurrentSettings();
+        var ci = getCharacterInfo();
+        var toggles = settings.sectionToggles || {};
+        var parts = [];
+
+        if (toggles.world !== false && cur.world && cur.world.trim()) {
+            parts.push('[AU World Setting]');
+            parts.push(cur.world.trim());
+            parts.push('');
+        }
+        if (toggles.charSetting !== false && cur.charSetting && cur.charSetting.trim()) {
+            parts.push('[' + ci.charName + ' - AU Character Setting]');
+            parts.push(cur.charSetting.trim());
+            parts.push('');
+        }
+        if (toggles.userSetting !== false && cur.userSetting && cur.userSetting.trim()) {
+            parts.push('[' + ci.userName + ' - AU Character Setting]');
+            parts.push(cur.userSetting.trim());
+            parts.push('');
+        }
+        if (toggles.charClothing !== false && cur.charClothing && cur.charClothing.trim()) {
+            parts.push('[' + ci.charName + ' - Current Clothing/Appearance]');
+            parts.push(cur.charClothing.trim());
+            parts.push('');
+        }
+        if (toggles.userClothing !== false && cur.userClothing && cur.userClothing.trim()) {
+            parts.push('[' + ci.userName + ' - Current Clothing/Appearance]');
+            parts.push(cur.userClothing.trim());
+            parts.push('');
+        }
+        if (toggles.genre !== false && settings.genrePromptEnabled && cur.genrePrompt && cur.genrePrompt.trim()) {
+            parts.push('[Genre/Tone Instructions]');
+            parts.push(cur.genrePrompt.trim());
+            parts.push('');
+        }
+        return parts.join('\n').trim();
+    }
+
+    function updateExtensionPrompt() {
+        try {
+            var ctx = SillyTavern.getContext();
+            if (!ctx || typeof ctx.setExtensionPrompt !== 'function') return;
+            var s = getSettings();
+            var text = buildInjectionText();
+            if (s.enabled && text) {
+                ctx.setExtensionPrompt(MODULE_NAME, text, s.injectionPosition, s.injectionDepth, true, s.injectionRole);
+                log('Prompt injected — pos=' + s.injectionPosition + ' depth=' + s.injectionDepth + ' role=' + s.injectionRole);
+            } else {
+                ctx.setExtensionPrompt(MODULE_NAME, '', -1, 0);
+            }
+        } catch (e) {
+            logError('updateExtensionPrompt', e);
+        }
+    }
+
+    function getInjectionPreview() {
+        var cur = getAllCurrentSettings();
+        var ci = getCharacterInfo();
+        var s = getSettings();
+        var lines = ['=== AU World Builder 주입 미리보기 ===\n'];
+        if (cur.world) lines.push('--- 세계관 ---\n' + cur.world + '\n');
+        if (cur.charSetting) lines.push('--- ' + ci.charName + ' 설정 ---\n' + cur.charSetting + '\n');
+        if (cur.userSetting) lines.push('--- ' + ci.userName + ' 설정 ---\n' + cur.userSetting + '\n');
+        if (cur.charClothing) lines.push('--- ' + ci.charName + ' 복장 ---\n' + cur.charClothing + '\n');
+        if (cur.userClothing) lines.push('--- ' + ci.userName + ' 복장 ---\n' + cur.userClothing + '\n');
+        if (s.genrePromptEnabled && cur.genrePrompt) lines.push('--- 장르/톤 ---\n' + cur.genrePrompt + '\n');
+        var tokenInfo = getInjectionTokenInfo();
+        lines.push('\n--- 예상 토큰 수: ~' + tokenInfo.tokens + ' tokens ---');
+        lines.push('--- 주입 위치: ' + ['Before Main', 'In-Chat', 'After Main'][s.injectionPosition || 1] + ' | Depth: ' + (s.injectionDepth || 4) + ' | Role: ' + ['System', 'User', 'Assistant'][s.injectionRole || 0] + ' ---');
+        return lines.join('\n');
+    }
+
+    // ================================================================
+    // SECTION 15 — LOREBOOK / WORLD INFO EXPORT  (#10)
+    // ================================================================
+    function exportToLorebook() {
+        var cur = getAllCurrentSettings();
+        var ci = getCharacterInfo();
+        var cd = getChatData();
+        var concept = cd.auConcept || 'AU';
+
+        var entries = {};
+        var uid = 0;
+
+        function addEntry(key, keywords, comment, content) {
+            if (!content || !content.trim()) return;
+            entries[String(uid)] = {
+                uid: uid,
+                key: keywords,
+                keysecondary: [],
+                comment: comment,
+                content: content.trim(),
+                constant: false,
+                selective: false,
+                selectiveLogic: 0,
+                addMemo: true,
+                order: 100 + uid,
+                position: 0,
+                disable: false,
+                excludeRecursion: false,
+                preventRecursion: false,
+                delayUntilRecursion: false,
+                probability: 100,
+                useProbability: true,
+                depth: 4,
+                group: 'AU World Builder',
+                groupOverride: false,
+                groupWeight: 100,
+                scanDepth: null,
+                caseSensitive: false,
+                matchWholeWords: false,
+                automationId: '',
+                role: null,
+                sticky: null,
+                cooldown: null,
+                delay: null,
+            };
+            uid++;
+        }
+
+        addEntry('world', ['au world', 'world setting', concept.toLowerCase().split(' ')[0]],
+            'AU World Setting — ' + concept, cur.world);
+        addEntry('char', [ci.charName.toLowerCase(), 'au character'],
+            ci.charName + ' AU Setting', cur.charSetting);
+        addEntry('user', [ci.userName.toLowerCase(), 'au user'],
+            ci.userName + ' AU Setting', cur.userSetting);
+        addEntry('charClothing', [ci.charName.toLowerCase() + ' clothing', ci.charName.toLowerCase() + ' outfit'],
+            ci.charName + ' Clothing', cur.charClothing);
+        addEntry('userClothing', [ci.userName.toLowerCase() + ' clothing', ci.userName.toLowerCase() + ' outfit'],
+            ci.userName + ' Clothing', cur.userClothing);
+        if (cur.genrePrompt) {
+            addEntry('genre', ['au genre', 'au tone'],
+                'AU Genre/Tone', cur.genrePrompt);
+        }
+
+        var exportData = { entries: entries };
+        var blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'AU-WorldInfo-' + (ci.charName || 'export') + '-' + Date.now() + '.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showStatus('Lorebook(World Info) JSON으로 내보내기 완료!', 'success');
+    }
+
+    /** Try to directly create WI entries in SillyTavern's current book */
+    async function exportToLorebookDirect() {
+        var cur = getAllCurrentSettings();
+        var ci = getCharacterInfo();
+        var cd = getChatData();
+        var concept = cd.auConcept || 'AU';
+
+        try {
+            var ctx = SillyTavern.getContext();
+            // Try using slash commands if available
+            var exec = ctx.executeSlashCommandsWithOptions || ctx.executeSlashCommands;
+            if (!exec) throw new Error('Slash commands not available');
+
+            var sections = [
+                { key: ['au world', concept], comment: 'AU World — ' + concept, content: cur.world },
+                { key: [ci.charName, 'au character'], comment: ci.charName + ' AU', content: cur.charSetting },
+                { key: [ci.userName, 'au user'], comment: ci.userName + ' AU', content: cur.userSetting },
+            ];
+
+            var created = 0;
+            for (var i = 0; i < sections.length; i++) {
+                var s = sections[i];
+                if (!s.content) continue;
+                var cmd = '/wi create key="' + s.key.join(', ') + '" ' + s.content.replace(/\n/g, ' ').substring(0, 2000);
+                await exec(cmd);
+                created++;
+            }
+
+            showStatus(created + '개의 World Info 항목이 생성되었습니다!', 'success');
+        } catch (e) {
+            log('Direct WI export failed: ' + e.message + ' — falling back to file export');
+            exportToLorebook();
+        }
+    }
+
+    // ================================================================
+    // SECTION 16 — PRESET MANAGEMENT
+    // ================================================================
+    function generatePresetId() { return 'preset_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9); }
+
+    function getPresets() { return getSettings().presets || []; }
+
+    function savePreset(name) {
+        if (!name || !name.trim()) throw new Error('Preset name is required');
+        var cur = getAllCurrentSettings();
+        var ci = getCharacterInfo();
+        var preset = {
+            id: generatePresetId(), name: name.trim(),
+            createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+            characterName: ci.charName,
+            data: {
+                worldSetting: cur.world,
+                characterSettings: { char: cur.charSetting, user: cur.userSetting },
+                clothingStyles: { char: cur.charClothing, user: cur.userClothing },
+                genrePrompt: cur.genrePrompt,
+            }
+        };
+        var s = getSettings();
+        if (!s.presets) s.presets = [];
+        s.presets.push(preset);
+        saveSettings();
+        return preset;
+    }
+
+    function loadPreset(presetId) {
+        var presets = getPresets();
+        var preset = presets.find(function (p) { return p.id === presetId; });
+        if (!preset) throw new Error('Preset not found');
+        var d = preset.data;
+
+        // Save history before applying
+        saveToHistory('preset-load', getAllCurrentSettings());
+
+        saveSetting('worldSetting', d.worldSetting || '');
+        saveSetting('characterSettings', d.characterSettings || { char: '', user: '' });
+        saveSetting('clothingStyles', d.clothingStyles || { char: '', user: '' });
+        saveSetting('genrePrompt', d.genrePrompt || '');
+        loadChatDataToUI();
+        return preset;
+    }
+
+    function renamePreset(presetId, newName) {
+        var s = getSettings();
+        var p = s.presets.find(function (x) { return x.id === presetId; });
+        if (!p) throw new Error('Preset not found');
+        p.name = newName.trim();
+        p.updatedAt = new Date().toISOString();
+        saveSettings();
+    }
+
+    function deletePreset(presetId) {
+        var s = getSettings();
+        var i = s.presets.findIndex(function (x) { return x.id === presetId; });
+        if (i === -1) throw new Error('Preset not found');
+        s.presets.splice(i, 1);
+        saveSettings();
+    }
+
+    function exportPresets() {
+        var presets = getPresets();
+        var d = { version: '1.0', exportDate: new Date().toISOString(), type: 'au-world-builder-presets', presets: presets };
+        var blob = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a'); a.href = url;
+        a.download = 'au-world-builder-presets-' + Date.now() + '.json';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    function importPresets(fileContent) {
+        var d = JSON.parse(fileContent);
+        if (d.type !== 'au-world-builder-presets' || !Array.isArray(d.presets)) throw new Error('Invalid preset file');
+        var s = getSettings();
+        if (!s.presets) s.presets = [];
+        var count = 0;
+        d.presets.forEach(function (p) {
+            p.id = generatePresetId();
+            p.name = p.name + ' (imported)';
+            s.presets.push(p);
+            count++;
+        });
+        saveSettings();
+        return count;
+    }
+
+    // ================================================================
+    // SECTION 17 — UI MANAGEMENT
+    // ================================================================
+    function showStatus(message, type) {
+        var el = document.getElementById('auwb-status-message');
+        if (!el) return;
+        el.textContent = message;
+        el.className = 'auwb-status-message ' + type;
+        el.style.display = 'block';
+        if (type !== 'error') setTimeout(function () { el.style.display = 'none'; }, 5000);
+        log(type.toUpperCase() + ': ' + message);
+    }
+
+    function updateCharacterNames() {
+        var ci = getCharacterInfo();
+        document.querySelectorAll('.auwb-char-name').forEach(function (el) { el.textContent = ci.charName; });
+        document.querySelectorAll('.auwb-user-name').forEach(function (el) { el.textContent = ci.userName; });
+        try {
+            var len = getChatLength();
+            var lenEl = document.getElementById('auwb-chat-length');
+            if (lenEl) lenEl.textContent = String(len);
+            var endInput = document.getElementById('auwb-update-end');
+            if (endInput && len > 0) endInput.value = String(len - 1);
+        } catch (_) {}
+    }
+
+    function loadSettingsToUI() {
+        var s = getSettings();
+        loadChatDataToUI();
+
+        setChecked('auwb-enabled', s.enabled);
+        setChecked('auwb-auto-update', s.autoUpdateEnabled);
+        setChecked('auwb-smart-auto-update', s.smartAutoUpdate !== false);
+        setChecked('auwb-genre-enabled', s.genrePromptEnabled);
+        setChecked('auwb-debug-mode', s.debugMode);
+        setVal('auwb-update-interval', s.autoUpdateInterval || 5);
+        setSelectVal('auwb-api-source', s.apiSource || 'sillytavern');
+        setSelectVal('auwb-output-language', s.outputLanguage || 'korean');
+        setVal('auwb-api-url', s.customApiUrl || '');
+        setVal('auwb-api-key', s.customApiKey || '');
+        setVal('auwb-api-model', s.customApiModel || '');
+        setVal('auwb-api-max-tokens', s.customApiMaxTokens || 4000);
+        setVal('auwb-api-timeout', s.customApiTimeout || 120);
+
+        // Injection controls (#6)
+        setSelectVal('auwb-injection-position', String(s.injectionPosition !== undefined ? s.injectionPosition : 1));
+        setVal('auwb-injection-depth', s.injectionDepth || 4);
+        setSelectVal('auwb-injection-role', String(s.injectionRole || 0));
+        var t = s.sectionToggles || {};
+        setChecked('auwb-inject-world', t.world !== false);
+        setChecked('auwb-inject-char', t.charSetting !== false);
+        setChecked('auwb-inject-user', t.userSetting !== false);
+        setChecked('auwb-inject-char-clothing', t.charClothing !== false);
+        setChecked('auwb-inject-user-clothing', t.userClothing !== false);
+        setChecked('auwb-inject-genre', t.genre !== false);
+
+        updateApiSettingsVisibility();
+        populateConnectionProfiles();
+        updateCharacterNames();
+        loadCustomPromptsToUI();
+        updateTokenDisplay();
+    }
+
+    function setChecked(id, v) { var el = document.getElementById(id); if (el) el.checked = !!v; }
+    function setSelectVal(id, v) { var el = document.getElementById(id); if (el) el.value = v; }
+
+    function updateApiSettingsVisibility() {
+        var src = getElVal('auwb-api-source');
+        var st = document.getElementById('auwb-st-api-settings');
+        var cu = document.getElementById('auwb-custom-api-settings');
+        if (st) st.style.display = (src === 'sillytavern') ? 'block' : 'none';
+        if (cu) cu.style.display = (src !== 'sillytavern') ? 'block' : 'none';
+    }
+
+    function populateConnectionProfiles() {
+        var sel = document.getElementById('auwb-connection-profile');
+        if (!sel) return;
+        var profiles = getConnectionProfiles();
+        sel.innerHTML = '<option value="">현재 API 연결 사용</option>';
+        profiles.forEach(function (p) {
+            var o = document.createElement('option');
+            o.value = p.id; o.textContent = p.name || p.id;
+            sel.appendChild(o);
+        });
+        var s = getSettings();
+        if (s.connectionProfile) sel.value = s.connectionProfile;
+    }
+
+    async function checkApiStatus() {
+        var el = document.getElementById('auwb-api-status');
+        if (!el) return;
+        el.innerHTML = '<span class="auwb-status-indicator checking"></span><span>확인 중…</span>';
+        try {
+            var ctx = SillyTavern.getContext();
+            var ok = !!(ctx.generateRaw || ctx.generateQuietPrompt);
+            el.innerHTML = ok
+                ? '<span class="auwb-status-indicator connected"></span><span>Connected</span>'
+                : '<span class="auwb-status-indicator disconnected"></span><span>No API</span>';
+        } catch (_) {
+            el.innerHTML = '<span class="auwb-status-indicator disconnected"></span><span>Error</span>';
+        }
+    }
+
+    function updateTokenDisplay() {
+        var info = getInjectionTokenInfo();
+        var el = document.getElementById('auwb-token-display');
+        if (el) el.textContent = '~' + info.tokens + ' tokens';
+    }
+
+    // History list rendering (#3)
+    function renderHistoryList() {
+        var listEl = document.getElementById('auwb-history-list');
+        if (!listEl) return;
+        var history = getHistory();
+        if (!history.length) {
+            listEl.innerHTML = '<div class="auwb-preset-empty">히스토리가 없습니다.</div>';
+            return;
+        }
+        var html = '';
+        history.forEach(function (entry, idx) {
+            var date = new Date(entry.timestamp).toLocaleString();
+            var typeLabel = {
+                'initial': '초기 생성',
+                'auto-update': '자동 업데이트',
+                'manual-update': '수동 업데이트',
+                'regen': '섹션 재생성',
+                'preset-load': '프리셋 로드',
+                'update': '업데이트',
+            }[entry.type] || entry.type;
+
+            html += '<div class="auwb-history-item" data-history-id="' + entry.id + '">';
+            html += '<div class="auwb-history-info">';
+            html += '<span class="auwb-history-type">' + escapeHtml(typeLabel) + '</span>';
+            html += '<span class="auwb-history-date">' + date + '</span>';
+            html += '</div>';
+            html += '<div class="auwb-preset-actions">';
+            html += '<button class="auwb-preset-btn auwb-history-view" title="미리보기"><i class="fa-solid fa-eye"></i></button>';
+            html += '<button class="auwb-preset-btn auwb-history-rollback" title="이 버전으로 복원"><i class="fa-solid fa-rotate-left"></i></button>';
+            html += '</div>';
+            html += '</div>';
+        });
+        listEl.innerHTML = html;
+
+        // Bind events
+        listEl.querySelectorAll('.auwb-history-item').forEach(function (item) {
+            var hid = item.getAttribute('data-history-id');
+            item.querySelector('.auwb-history-view').addEventListener('click', function (e) {
+                e.stopPropagation();
+                viewHistoryEntry(hid);
+            });
+            item.querySelector('.auwb-history-rollback').addEventListener('click', function (e) {
+                e.stopPropagation();
+                if (confirm('이 버전으로 복원하시겠습니까? 현재 내용은 히스토리에 저장됩니다.')) {
+                    // Save current first
+                    saveToHistory('before-rollback', getAllCurrentSettings());
+                    rollbackToVersion(hid);
+                    renderHistoryList();
+                }
+            });
+        });
+    }
+
+    function viewHistoryEntry(hid) {
+        var history = getHistory();
+        var entry = history.find(function (h) { return h.id === hid; });
+        if (!entry) return;
+        var snap = entry.snapshot;
+        var text = '=== 히스토리 스냅샷 ===\n';
+        text += '시간: ' + new Date(entry.timestamp).toLocaleString() + '\n';
+        text += '유형: ' + entry.type + '\n\n';
+        text += '--- 세계관 ---\n' + (snap.world || '(없음)') + '\n\n';
+        text += '--- 캐릭터 설정 ---\n' + (snap.charSetting || '(없음)') + '\n\n';
+        text += '--- 유저 설정 ---\n' + (snap.userSetting || '(없음)') + '\n\n';
+        text += '--- 캐릭터 복장 ---\n' + (snap.charClothing || '(없음)') + '\n\n';
+        text += '--- 유저 복장 ---\n' + (snap.userClothing || '(없음)') + '\n';
+
+        var content = document.getElementById('auwb-preview-content');
+        if (content) content.textContent = text;
+        var modal = document.getElementById('auwb-preview-modal');
+        if (modal) modal.style.display = 'flex';
+    }
+
+    // Preset rendering
+    function renderPresetList() {
+        var listEl = document.getElementById('auwb-preset-list');
+        if (!listEl) return;
+        var presets = getPresets();
+        if (!presets.length) {
+            listEl.innerHTML = '<div class="auwb-preset-empty">저장된 프리셋이 없습니다.</div>';
+            return;
+        }
+        var html = '';
+        presets.forEach(function (preset) {
+            var date = new Date(preset.createdAt).toLocaleDateString();
+            html += '<div class="auwb-preset-item" data-preset-id="' + preset.id + '">';
+            html += '<span class="auwb-preset-name">' + escapeHtml(preset.name) + '</span>';
+            html += '<span class="auwb-preset-date">' + date + '</span>';
+            html += '<div class="auwb-preset-actions">';
+            html += '<button class="auwb-preset-btn load" title="Load"><i class="fa-solid fa-download"></i></button>';
+            html += '<button class="auwb-preset-btn rename" title="Rename"><i class="fa-solid fa-pen"></i></button>';
+            html += '<button class="auwb-preset-btn delete" title="Delete"><i class="fa-solid fa-trash"></i></button>';
+            html += '</div>';
+            html += '</div>';
+        });
+        listEl.innerHTML = html;
+
+        listEl.querySelectorAll('.auwb-preset-item').forEach(function (item) {
+            var pid = item.getAttribute('data-preset-id');
+            item.querySelector('.auwb-preset-btn.load').addEventListener('click', function (e) {
+                e.stopPropagation();
+                try { loadPreset(pid); showStatus('프리셋 로드 완료!', 'success'); renderPresetList(); }
+                catch (err) { showStatus('프리셋 로드 실패: ' + err.message, 'error'); }
+            });
+            item.querySelector('.auwb-preset-btn.rename').addEventListener('click', function (e) {
+                e.stopPropagation();
+                startRenamePreset(item, pid);
+            });
+            item.querySelector('.auwb-preset-btn.delete').addEventListener('click', function (e) {
+                e.stopPropagation();
+                if (confirm('이 프리셋을 삭제하시겠습니까?')) {
+                    try { deletePreset(pid); showStatus('프리셋 삭제됨', 'success'); renderPresetList(); }
+                    catch (err) { showStatus('삭제 실패: ' + err.message, 'error'); }
+                }
+            });
+        });
+    }
+
+    function startRenamePreset(itemEl, presetId) {
+        var nameEl = itemEl.querySelector('.auwb-preset-name');
+        var currentName = nameEl.textContent;
+        var input = document.createElement('input');
+        input.type = 'text'; input.className = 'auwb-preset-name-input'; input.value = currentName;
+        nameEl.style.display = 'none';
+        itemEl.insertBefore(input, nameEl);
+        input.focus(); input.select();
+        function finish() {
+            var n = input.value.trim();
+            if (n && n !== currentName) { try { renamePreset(presetId, n); showStatus('이름 변경됨', 'success'); } catch (_) {} }
+            renderPresetList();
+        }
+        input.addEventListener('blur', finish);
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { e.preventDefault(); finish(); }
+            else if (e.key === 'Escape') renderPresetList();
+        });
+    }
+
+    // Export / import
+    function exportSettings() {
+        var ci = getCharacterInfo();
+        var cur = getAllCurrentSettings();
+        var blob = new Blob([JSON.stringify({
+            version: '2.0', exportDate: new Date().toISOString(),
+            characterName: ci.charName, userName: ci.userName, auConcept: getChatData().auConcept || '',
+            worldSetting: cur.world, characterSettings: { char: cur.charSetting, user: cur.userSetting },
+            clothingStyles: { char: cur.charClothing, user: cur.userClothing }, genrePrompt: cur.genrePrompt,
+        }, null, 2)], { type: 'application/json' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a'); a.href = url;
+        a.download = 'au-world-builder-' + (ci.charName || 'export') + '-' + Date.now() + '.json';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+        showStatus('내보내기 완료!', 'success');
+    }
+
+    function importSettings(file) {
+        var reader = new FileReader();
+        reader.onload = function (e) {
+            try {
+                var d = JSON.parse(e.target.result);
+                saveToHistory('before-import', getAllCurrentSettings());
+                if (d.auConcept !== undefined) { saveSetting('auConcept', d.auConcept); setVal('auwb-au-concept', d.auConcept); }
+                if (d.worldSetting !== undefined) { saveSetting('worldSetting', d.worldSetting); setVal('auwb-world-setting-content', d.worldSetting); }
+                if (d.characterSettings) { saveSetting('characterSettings', d.characterSettings); setVal('auwb-char-setting-content', d.characterSettings.char || ''); setVal('auwb-user-setting-content', d.characterSettings.user || ''); }
+                if (d.clothingStyles) { saveSetting('clothingStyles', d.clothingStyles); setVal('auwb-char-style-content', d.clothingStyles.char || ''); setVal('auwb-user-style-content', d.clothingStyles.user || ''); }
+                if (d.genrePrompt !== undefined) { saveSetting('genrePrompt', d.genrePrompt); setVal('auwb-genre-prompt', d.genrePrompt); }
+                showStatus('가져오기 완료!', 'success');
+                renderHistoryList();
+            } catch (err) { showStatus('가져오기 실패: 잘못된 JSON', 'error'); }
+        };
+        reader.readAsText(file);
+    }
+
+    function clearAllSettings() {
+        if (!confirm('모든 AU World Builder 설정을 초기화하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) return;
+        saveToHistory('before-clear', getAllCurrentSettings());
+        ['auConcept', 'worldSetting', 'genrePrompt'].forEach(function (k) { saveSetting(k, ''); });
+        saveSetting('characterSettings', { char: '', user: '' });
+        saveSetting('clothingStyles', { char: '', user: '' });
+        ['auwb-au-concept', 'auwb-world-setting-content', 'auwb-char-setting-content', 'auwb-user-setting-content',
+            'auwb-char-style-content', 'auwb-user-style-content', 'auwb-genre-prompt'].forEach(function (id) { setVal(id, ''); });
+        showStatus('모든 설정이 초기화되었습니다!', 'success');
+        renderHistoryList();
+    }
+
+    // ================================================================
+    // SECTION 18 — UI EVENT BINDING
+    // ================================================================
+    function openPopup() {
+        var popup = document.getElementById('au-world-builder-popup');
+        if (popup) {
+            popup.style.display = 'flex';
+            loadSettingsToUI();
+            checkApiStatus();
+            renderPresetList();
+            renderHistoryList();
+        }
+    }
+
+    function initGenerationOptions() {
+        var mappings = [
+            { prefix: 'auwb-opt-cliche', key: 'cliche', buttons: ['allow', 'subvert'] },
+            { prefix: 'auwb-opt-relation', key: 'relation', buttons: ['first', 'known'] },
+            { prefix: 'auwb-opt-original', key: 'original', buttons: ['break', 'keep'] },
+            { prefix: 'auwb-opt-mood', key: 'mood', buttons: ['light', 'dark'] }
+        ];
+        var s = getSettings();
+        var opts = s.genOptions || {};
+
+        mappings.forEach(function (m) {
+            m.buttons.forEach(function (bv) {
+                var btn = document.getElementById(m.prefix + '-' + bv);
+                if (!btn) return;
+                if (opts[m.key] === bv) btn.classList.add('active'); else btn.classList.remove('active');
+                btn.addEventListener('click', function () {
+                    m.buttons.forEach(function (v) { var b = document.getElementById(m.prefix + '-' + v); if (b) b.classList.remove('active'); });
+                    btn.classList.add('active');
+                    var cs = getSettings();
+                    if (!cs.genOptions) cs.genOptions = {};
+                    cs.genOptions[m.key] = bv;
+                    saveSetting('genOptions', cs.genOptions);
+                });
+            });
+        });
+    }
+
+    /** Helper to make a button show loading state */
+    function withLoading(btnId, asyncFn) {
+        return async function () {
+            var btn = document.getElementById(btnId);
+            if (!btn || btn.disabled) return;
+            btn.disabled = true;
+            var orig = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 처리 중…';
+            try { await asyncFn(); }
+            catch (e) { showStatus('실패: ' + e.message, 'error'); }
+            finally { btn.disabled = false; btn.innerHTML = orig; }
+        };
+    }
+
+    function bindUIEvents() {
+        var popup = document.getElementById('au-world-builder-popup');
+        if (!popup) return;
+
+        // Close
+        var closeBtn = document.getElementById('auwb-close');
+        if (closeBtn) closeBtn.addEventListener('click', function () { popup.style.display = 'none'; });
+        var overlay = popup.querySelector('.auwb-popup-overlay');
+        if (overlay) overlay.addEventListener('click', function () { popup.style.display = 'none'; });
+
+        // Tabs
+        popup.querySelectorAll('.auwb-tab-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var tabId = btn.getAttribute('data-tab');
+                popup.querySelectorAll('.auwb-tab-btn').forEach(function (b) { b.classList.remove('active'); });
+                btn.classList.add('active');
+                popup.querySelectorAll('.auwb-tab-content').forEach(function (c) {
+                    c.style.display = (c.id === 'auwb-tab-' + tabId) ? 'block' : 'none';
+                });
+            });
+        });
+
+        // Preview modal close
+        bindClick('auwb-preview-close', function () { var m = document.getElementById('auwb-preview-modal'); if (m) m.style.display = 'none'; });
+        var po = document.querySelector('#auwb-preview-modal .auwb-modal-overlay');
+        if (po) po.addEventListener('click', function () { var m = document.getElementById('auwb-preview-modal'); if (m) m.style.display = 'none'; });
+
+        initGenerationOptions();
+
+        // === GENERATE TAB ===
+        bindClick('auwb-generate-btn', withLoading('auwb-generate-btn', async function () {
+            var concept = getElVal('auwb-au-concept').trim();
+            if (!concept) { showStatus('AU 컨셉을 먼저 입력해 주세요.', 'error'); return; }
+            showStatus('AU 세계 생성 중…', 'info');
+            // Save history
+            saveToHistory('initial', getAllCurrentSettings());
+            var result = await generateAUWorld(concept);
+            if (!result) { showStatus('API 응답이 비어 있습니다.', 'error'); return; }
+            var parsed = parseGeneratedContent(result);
+            if (parsed.world) { saveSetting('worldSetting', parsed.world); setVal('auwb-world-setting-content', parsed.world); }
+            saveSetting('characterSettings', { char: parsed.charSetting || '', user: parsed.userSetting || '' });
+            setVal('auwb-char-setting-content', parsed.charSetting || '');
+            setVal('auwb-user-setting-content', parsed.userSetting || '');
+            saveSetting('clothingStyles', { char: parsed.charClothing || '', user: parsed.userClothing || '' });
+            setVal('auwb-char-style-content', parsed.charClothing || '');
+            setVal('auwb-user-style-content', parsed.userClothing || '');
+            saveSetting('auConcept', concept);
+            updateTokenDisplay();
+            renderHistoryList();
+            showStatus('AU 세계 생성 완료!', 'success');
+        }));
+
+        // Manual update
+        bindClick('auwb-manual-update-btn', withLoading('auwb-manual-update-btn', async function () {
+            var s = parseInt(getElVal('auwb-update-start')) || 0;
+            var e = parseInt(getElVal('auwb-update-end')) || 0;
+            if (e < s) { showStatus('종료 인덱스가 시작보다 커야 합니다.', 'error'); return; }
+            showStatus('메시지 분석 중…', 'info');
+            var result = await updateFromRange(s, e);
+            if (result) {
+                applyUpdateResult(result, 'manual-update');
+                var lu = document.getElementById('auwb-last-update');
+                if (lu) lu.textContent = '마지막 업데이트: ' + new Date().toLocaleString() + ' (#' + s + ' – #' + e + ')';
+                updateTokenDisplay();
+                showStatus('업데이트 완료!', 'success');
+            }
+        }));
+
+        // Genre prompt
+        bindClick('auwb-generate-genre-btn', withLoading('auwb-generate-genre-btn', async function () {
+            showStatus('장르 프롬프트 생성 중…', 'info');
+            var result = await generateGenrePromptText();
+            if (result) { saveSetting('genrePrompt', result); setVal('auwb-genre-prompt', result); showStatus('장르 프롬프트 생성 완료!', 'success'); }
+        }));
+
+        // === SELECTIVE REGENERATION (#2) ===
+        var regenSections = [
+            { btn: 'auwb-regen-world', key: 'world', target: 'auwb-world-setting-content', saveKey: 'worldSetting' },
+            { btn: 'auwb-regen-char', key: 'charSetting', target: 'auwb-char-setting-content', saveKey: 'characterSettings', subKey: 'char' },
+            { btn: 'auwb-regen-user', key: 'userSetting', target: 'auwb-user-setting-content', saveKey: 'characterSettings', subKey: 'user' },
+            { btn: 'auwb-regen-char-clothing', key: 'charClothing', target: 'auwb-char-style-content', saveKey: 'clothingStyles', subKey: 'char' },
+            { btn: 'auwb-regen-user-clothing', key: 'userClothing', target: 'auwb-user-style-content', saveKey: 'clothingStyles', subKey: 'user' },
+        ];
+        regenSections.forEach(function (sec) {
+            bindClick(sec.btn, withLoading(sec.btn, async function () {
+                showStatus(sec.key + ' 섹션 재생성 중…', 'info');
+                saveToHistory('regen', getAllCurrentSettings());
+                var res = await regenerateSection(sec.key);
+                if (res && res.value) {
+                    if (sec.subKey) {
+                        var existing = getChatData()[sec.saveKey] || { char: '', user: '' };
+                        existing[sec.subKey] = res.value;
+                        saveSetting(sec.saveKey, existing);
+                    } else {
+                        saveSetting(sec.saveKey, res.value);
+                    }
+                    setVal(sec.target, res.value);
+                    updateTokenDisplay();
+                    renderHistoryList();
+                    showStatus('섹션 재생성 완료!', 'success');
+                }
+            }));
+        });
+
+        // === WORLD TAB ===
+        bindClick('auwb-save-world', function () {
+            saveSetting('worldSetting', getElVal('auwb-world-setting-content'));
+            updateTokenDisplay();
+            showStatus('세계관 설정 저장됨!', 'success');
+        });
+
+        // === CHARACTERS TAB ===
+        bindClick('auwb-save-characters', function () {
+            saveSetting('characterSettings', { char: getElVal('auwb-char-setting-content'), user: getElVal('auwb-user-setting-content') });
+            updateTokenDisplay();
+            showStatus('캐릭터 설정 저장됨!', 'success');
+        });
+        bindClick('auwb-save-styles', function () {
+            saveSetting('clothingStyles', { char: getElVal('auwb-char-style-content'), user: getElVal('auwb-user-style-content') });
+            updateTokenDisplay();
+            showStatus('복장 스타일 저장됨!', 'success');
+        });
+
+        // === SETTINGS TAB ===
+        bindChange('auwb-enabled', function (v) { saveSetting('enabled', v); });
+        bindChange('auwb-auto-update', function (v) { saveSetting('autoUpdateEnabled', v); });
+        bindChange('auwb-smart-auto-update', function (v) { saveSetting('smartAutoUpdate', v); });
+        bindChange('auwb-genre-enabled', function (v) { saveSetting('genrePromptEnabled', v); });
+        bindChange('auwb-debug-mode', function (v) { saveSetting('debugMode', v); });
+        bindInputChange('auwb-update-interval', function (v) { saveSetting('autoUpdateInterval', parseInt(v) || 5); });
+        bindInputChange('auwb-output-language', function (v) { saveSetting('outputLanguage', v); });
+        bindInputChange('auwb-api-source', function (v) { saveSetting('apiSource', v); updateApiSettingsVisibility(); });
+        bindInputChange('auwb-connection-profile', function (v) { saveSetting('connectionProfile', v); });
+        bindInputChange('auwb-api-url', function (v) { saveSetting('customApiUrl', v); });
+        bindInputChange('auwb-api-key', function (v) { saveSetting('customApiKey', v); });
+        bindInputChange('auwb-api-model', function (v) { saveSetting('customApiModel', v); });
+        bindInputChange('auwb-api-max-tokens', function (v) { saveSetting('customApiMaxTokens', parseInt(v) || 4000); });
+        bindInputChange('auwb-api-timeout', function (v) { saveSetting('customApiTimeout', parseInt(v) || 120); });
+
+        // Injection controls (#6)
+        bindInputChange('auwb-injection-position', function (v) { saveSetting('injectionPosition', parseInt(v)); });
+        bindInputChange('auwb-injection-depth', function (v) { saveSetting('injectionDepth', parseInt(v) || 4); });
+        bindInputChange('auwb-injection-role', function (v) { saveSetting('injectionRole', parseInt(v)); });
+        ['world', 'charSetting', 'userSetting', 'charClothing', 'userClothing', 'genre'].forEach(function (key) {
+            var idMap = { world: 'auwb-inject-world', charSetting: 'auwb-inject-char', userSetting: 'auwb-inject-user', charClothing: 'auwb-inject-char-clothing', userClothing: 'auwb-inject-user-clothing', genre: 'auwb-inject-genre' };
+            bindChange(idMap[key], function (v) {
+                var s = getSettings();
+                if (!s.sectionToggles) s.sectionToggles = {};
+                s.sectionToggles[key] = v;
+                saveSetting('sectionToggles', s.sectionToggles);
+                updateTokenDisplay();
+            });
+        });
+
+        // API test
+        bindClick('auwb-test-api-btn', withLoading('auwb-test-api-btn', async function () {
+            showStatus('API 연결 테스트 중…', 'info');
+            await testApiConnection();
+            showStatus('API 연결 성공!', 'success');
+            checkApiStatus();
+        }));
+
+        // Actions
+        bindClick('auwb-preview-injection', function () {
+            var content = document.getElementById('auwb-preview-content');
+            if (content) content.textContent = getInjectionPreview();
+            var modal = document.getElementById('auwb-preview-modal');
+            if (modal) modal.style.display = 'flex';
+        });
+        bindClick('auwb-export', exportSettings);
+        var importFile = document.getElementById('auwb-import-file');
+        bindClick('auwb-import', function () { if (importFile) importFile.click(); });
+        if (importFile) importFile.addEventListener('change', function (e) {
+            if (e.target.files && e.target.files[0]) { importSettings(e.target.files[0]); e.target.value = ''; }
+        });
+        bindClick('auwb-clear-all', clearAllSettings);
+
+        // Lorebook export (#10)
+        bindClick('auwb-export-lorebook', exportToLorebook);
+        bindClick('auwb-export-lorebook-direct', exportToLorebookDirect);
+
+        // Genre save
+        bindClick('auwb-save-genre', function () {
+            saveSetting('genrePrompt', getElVal('auwb-genre-prompt'));
+            updateTokenDisplay();
+            showStatus('장르 프롬프트 저장됨!', 'success');
+        });
+
+        // === PRESET TAB ===
+        bindClick('auwb-save-preset-btn', function () {
+            var name = getElVal('auwb-preset-name').trim();
+            if (!name) { showStatus('프리셋 이름을 입력하세요.', 'error'); return; }
+            try { savePreset(name); setVal('auwb-preset-name', ''); showStatus('프리셋 저장: ' + name, 'success'); renderPresetList(); }
+            catch (e) { showStatus('저장 실패: ' + e.message, 'error'); }
+        });
+        bindClick('auwb-export-presets', function () { exportPresets(); showStatus('프리셋 내보내기 완료!', 'success'); });
+        var ipFile = document.getElementById('auwb-import-presets-file');
+        bindClick('auwb-import-presets', function () { if (ipFile) ipFile.click(); });
+        if (ipFile) ipFile.addEventListener('change', function (e) {
+            if (e.target.files && e.target.files[0]) {
+                var r = new FileReader();
+                r.onload = function (ev) {
+                    try { var c = importPresets(ev.target.result); showStatus(c + '개 프리셋 가져옴!', 'success'); renderPresetList(); }
+                    catch (err) { showStatus('가져오기 실패: ' + err.message, 'error'); }
+                };
+                r.readAsText(e.target.files[0]); e.target.value = '';
+            }
+        });
+
+        // === PROMPT TAB (#5) ===
+        bindClick('auwb-save-custom-prompts', saveCustomPrompts);
+        bindClick('auwb-reset-initial-prompt', function () { resetPromptTemplate('initial'); });
+        bindClick('auwb-reset-update-prompt', function () { resetPromptTemplate('update'); });
+        bindClick('auwb-reset-genre-prompt-tmpl', function () { resetPromptTemplate('genre'); });
+        bindClick('auwb-reset-section-prompt', function () { resetPromptTemplate('section'); });
+        bindClick('auwb-reset-analysis-prompt', function () { resetPromptTemplate('smartAnalysis'); });
+
+        // Load models for custom API
+        bindClick('auwb-load-models', async function () {
+            try {
+                var s = getSettings();
+                var url = (s.customApiUrl || '').replace(/\/chat\/completions\/?$/, '/models');
+                var headers = {};
+                if (s.customApiKey) headers['Authorization'] = 'Bearer ' + s.customApiKey;
+                var resp = await fetch(url, { headers: headers });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                var data = await resp.json();
+                var models = (data.data || data.models || []).map(function (m) { return m.id || m.name || m; });
+                var dl = document.getElementById('auwb-models-list') || document.createElement('datalist');
+                dl.id = 'auwb-models-list';
+                dl.innerHTML = models.map(function (m) { return '<option value="' + m + '">'; }).join('');
+                if (!document.getElementById('auwb-models-list')) document.body.appendChild(dl);
+                var mi = document.getElementById('auwb-api-model');
+                if (mi) mi.setAttribute('list', 'auwb-models-list');
+                showStatus(models.length + '개 모델 로드됨', 'success');
+            } catch (e) { showStatus('모델 로드 실패: ' + e.message, 'error'); }
+        });
+
+        renderPresetList();
+        renderHistoryList();
+        log('UI events bound');
+    }
+
+    // UI helper binders
+    function bindClick(id, fn) { var el = document.getElementById(id); if (el) el.addEventListener('click', fn); }
+    function bindChange(id, fn) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('change', function () { fn(el.checked); });
+    }
+    function bindInputChange(id, fn) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('change', function () { fn(el.value); });
+    }
+
+    // ================================================================
+    // SECTION 19 — EVENT REGISTRATION & INITIALIZATION
+    // ================================================================
+    function registerPromptInjection() {
+        try {
+            var ctx = SillyTavern.getContext();
+            if (!ctx || !ctx.eventSource || !ctx.event_types) return false;
+
+            ctx.eventSource.on(ctx.event_types.CHAT_CHANGED, function () {
+                log('Chat changed');
+                autoUpdateMessageCount = 0;
+                loadChatDataToUI();
+            });
+
+            ctx.eventSource.on(ctx.event_types.GENERATION_STARTED, function () {
+                updateExtensionPrompt();
+            });
+
+            ctx.eventSource.on(ctx.event_types.CHARACTER_MESSAGE_RENDERED, function () {
+                updateExtensionPrompt();
+                var s = getSettings();
+                if (!s.autoUpdateEnabled) return;
+                autoUpdateMessageCount++;
+                var interval = s.autoUpdateInterval || 5;
+                if (autoUpdateMessageCount >= interval) {
+                    autoUpdateMessageCount = 0;
+                    triggerAutoUpdate(interval);
+                }
+            });
+
+            log('Event listeners registered');
+            return true;
+        } catch (e) {
+            logError('registerPromptInjection failed', e);
+            return false;
+        }
+    }
+
+    async function loadPopupHTML() {
+        var paths = [
+            extensionFolderPath + '/popup.html',
+            'scripts/extensions/third-party/AU-World-Builder/popup.html',
+            'data/default-user/extensions/AU-World-Builder/popup.html',
+        ];
+        for (var i = 0; i < paths.length; i++) {
+            try { var html = await $.get(paths[i]); $('body').append(html); log('Popup loaded from: ' + paths[i]); return true; }
+            catch (_) { log('Popup not at ' + paths[i]); }
+        }
+        logError('Failed to load popup.html');
+        return false;
+    }
+
+    function loadCSS() {
+        var paths = [
+            extensionFolderPath + '/style.css',
+            'scripts/extensions/third-party/AU-World-Builder/style.css',
+            'data/default-user/extensions/AU-World-Builder/style.css',
+        ];
+        for (var i = 0; i < paths.length; i++) {
+            var link = document.createElement('link');
+            link.rel = 'stylesheet'; link.href = paths[i];
+            document.head.appendChild(link);
+            log('CSS loaded: ' + paths[i]);
+            return;
+        }
+    }
+
+    function addExtensionMenuButton() {
+        var retries = 0;
+        function tryAdd() {
+            if (document.getElementById('au-world-builder-menu-item')) return;
+            var menu = document.getElementById('extensionsMenu');
+            if (!menu) { if (retries++ < 20) setTimeout(tryAdd, 500); return; }
+            var item = document.createElement('div');
+            item.id = 'au-world-builder-menu-item';
+            item.className = 'list-group-item flex-container flexGap5 interactable';
+            item.tabIndex = 0; item.role = 'listitem';
+            item.innerHTML = '<div class="fa-solid fa-globe extensionsMenuExtensionButton"></div> AU World Builder';
+            item.addEventListener('click', function () { openPopup(); jQuery('#extensionsMenu').hide(); });
+            menu.appendChild(item);
+            log('Menu button added');
+        }
+        tryAdd();
+    }
+
+    async function init() {
+        log('=== AU World Builder v2.0 Initializing ===');
+        try {
+            getSettings();
+            loadCSS();
+            await loadPopupHTML();
+            addExtensionMenuButton();
+            bindUIEvents();
+            var ok = registerPromptInjection();
+            if (ok) updateExtensionPrompt();
+            else setTimeout(function () { if (registerPromptInjection()) updateExtensionPrompt(); }, 2000);
+            log('=== Initialization Complete ===');
+        } catch (e) {
+            logError('Init failed', e);
+        }
+    }
+
+    jQuery(function () { init(); });
+    window.AUWorldBuilder = { openPopup: openPopup, getSettings: getSettings, updateExtensionPrompt: updateExtensionPrompt };
+})();
