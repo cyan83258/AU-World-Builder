@@ -100,10 +100,12 @@
                         </div>
                         <div class="auwb-option-group">
                             <label>분위기</label>
-                            <div class="auwb-btn-toggle">
+                            <div class="auwb-btn-toggle auwb-btn-toggle-wrap">
+                                <button id="auwb-opt-mood-humorous" class="auwb-toggle-btn">유쾌</button>
                                 <button id="auwb-opt-mood-light" class="auwb-toggle-btn active">밝음</button>
-                                <button id="auwb-opt-mood-dark" class="auwb-toggle-btn">어두움</button>
                                 <button id="auwb-opt-mood-bittersweet" class="auwb-toggle-btn">씁쓸함</button>
+                                <button id="auwb-opt-mood-dark" class="auwb-toggle-btn">어두움</button>
+                                <button id="auwb-opt-mood-grim" class="auwb-toggle-btn">잔혹</button>
                             </div>
                         </div>
                         <!-- #2 Conflict -->
@@ -176,6 +178,67 @@
                             <input type="text" id="auwb-custom-style-input" class="auwb-input" placeholder="커스텀 스타일 입력…" maxlength="30">
                         </div>
                         <button id="auwb-add-style-tag" class="auwb-btn auwb-btn-secondary auwb-btn-sm"><i class="fa-solid fa-plus"></i> 추가</button>
+                    </div>
+                </div>
+
+                <!-- Era / Setting Tags -->
+                <div class="auwb-section">
+                    <h4><i class="fa-solid fa-clock"></i> 시대/배경 태그 <small style="font-weight:400;color:var(--auwb-text-muted);">(복수 선택)</small></h4>
+                    <div id="auwb-era-tags" class="auwb-genre-tags"></div>
+                    <div class="auwb-input-row" style="margin-top:8px;">
+                        <div class="auwb-input-group" style="flex:1;margin-bottom:0;">
+                            <input type="text" id="auwb-custom-era-input" class="auwb-input" placeholder="커스텀 시대/배경 입력…" maxlength="20">
+                        </div>
+                        <button id="auwb-add-era-tag" class="auwb-btn auwb-btn-secondary auwb-btn-sm"><i class="fa-solid fa-plus"></i> 추가</button>
+                    </div>
+                </div>
+
+                <!-- Creative Direction (Theme Anchor, Dramatic Question, Must-Include/Exclude) -->
+                <div class="auwb-section">
+                    <h4 class="auwb-collapse-trigger" data-target="auwb-creative-direction-body">
+                        <i class="fa-solid fa-compass"></i> 크리에이티브 방향
+                        <i class="fa-solid fa-chevron-down auwb-collapse-icon"></i>
+                    </h4>
+                    <div id="auwb-creative-direction-body" class="auwb-collapse-body" style="display:none;">
+                        <div class="auwb-input-group">
+                            <label><i class="fa-solid fa-gem"></i> 테마 앵커 <small style="font-weight:400;color:var(--auwb-text-muted);">(전체를 관통하는 상징/모티프)</small></label>
+                            <input type="text" id="auwb-theme-anchor" class="auwb-input" placeholder="예: 거울과 반영, 계절의 순환, 가면과 본심…" maxlength="100">
+                        </div>
+                        <div class="auwb-input-group">
+                            <label><i class="fa-solid fa-circle-question"></i> 핵심 극적 질문 <small style="font-weight:400;color:var(--auwb-text-muted);">(AU 전체의 드라마틱 퀘스천)</small></label>
+                            <input type="text" id="auwb-dramatic-question" class="auwb-input" placeholder="예: 서로를 신뢰할 수 있는가?, 진실이 모든 것을 파괴할까?…" maxlength="150">
+                        </div>
+                        <div class="auwb-input-group">
+                            <label><i class="fa-solid fa-check"></i> 반드시 포함 <small style="font-weight:400;color:var(--auwb-text-muted);">(쉼표로 구분)</small></label>
+                            <input type="text" id="auwb-must-include" class="auwb-input" placeholder="예: 폐건물, 비 오는 밤, 비밀을 숨기고 있음…">
+                        </div>
+                        <div class="auwb-input-group">
+                            <label><i class="fa-solid fa-ban"></i> 절대 금지 <small style="font-weight:400;color:var(--auwb-text-muted);">(쉼표로 구분)</small></label>
+                            <input type="text" id="auwb-must-exclude" class="auwb-input" placeholder="예: 학원물 클리셰, 갑작스러운 기억상실…">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Advanced Generation Modes -->
+                <div class="auwb-section">
+                    <h4 class="auwb-collapse-trigger" data-target="auwb-gen-modes-body">
+                        <i class="fa-solid fa-microchip"></i> 고급 생성 모드
+                        <i class="fa-solid fa-chevron-down auwb-collapse-icon"></i>
+                    </h4>
+                    <div id="auwb-gen-modes-body" class="auwb-collapse-body" style="display:none;">
+                        <div class="auwb-setting-row">
+                            <span>2-Pass 생성 <small style="color:var(--auwb-text-muted);">(스켈레톤→본문, 연결성 향상)</small></span>
+                            <label class="auwb-toggle"><input type="checkbox" id="auwb-two-pass-toggle"><span class="auwb-toggle-slider"></span></label>
+                        </div>
+                        <div class="auwb-setting-row">
+                            <span>순차 생성 <small style="color:var(--auwb-text-muted);">(세계→캐릭터→관계 순서대로)</small></span>
+                            <label class="auwb-toggle"><input type="checkbox" id="auwb-sequential-toggle"><span class="auwb-toggle-slider"></span></label>
+                        </div>
+                        <div class="auwb-setting-row">
+                            <span>자기비평 자동 개선 <small style="color:var(--auwb-text-muted);">(생성 후 약한 섹션 자동 보강)</small></span>
+                            <label class="auwb-toggle"><input type="checkbox" id="auwb-self-critique-toggle"><span class="auwb-toggle-slider"></span></label>
+                        </div>
+                        <p class="auwb-hint">2-Pass와 순차 생성은 동시 사용 불가 (순차 생성이 우선). API 호출이 늘어나므로 시간이 더 소요됩니다.</p>
                     </div>
                 </div>
 
@@ -597,7 +660,7 @@
                         <div class="auwb-input-row">
                             <div class="auwb-input-group"><label>모델</label><input type="text" id="auwb-api-model" class="auwb-input" placeholder="gpt-4o"><button id="auwb-load-models" class="auwb-btn auwb-btn-secondary auwb-btn-sm" style="margin-top:4px;">모델 목록</button></div>
                             <div class="auwb-input-group"><label>Max Tokens</label><input type="number" id="auwb-api-max-tokens" class="auwb-input" value="4000"></div>
-                            <div class="auwb-input-group"><label>Timeout (초)</label><input type="number" id="auwb-api-timeout" class="auwb-input" value="120"></div>
+                            <div class="auwb-input-group"><label>Timeout (초)</label><input type="number" id="auwb-api-timeout" class="auwb-input" value="300"></div>
                         </div>
                     </div>
                     <div class="auwb-btn-group">
