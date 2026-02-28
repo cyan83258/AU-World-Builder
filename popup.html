@@ -34,7 +34,10 @@
                 <div class="auwb-section">
                     <h4><i class="fa-solid fa-lightbulb"></i> AU 컨셉</h4>
                     <div class="auwb-concept-row">
-                        <textarea id="auwb-au-concept" class="auwb-textarea" rows="3" placeholder="예: 현대 카페 AU, 판타지 학원 AU…"></textarea>
+                        <div class="auwb-textarea-wrap" style="flex:1;">
+                            <textarea id="auwb-au-concept" class="auwb-textarea" rows="3" placeholder="예: 현대 카페 AU, 판타지 학원 AU…"></textarea>
+                            <button class="auwb-expand-btn" data-target-ta="auwb-au-concept" title="확대 보기"><i class="fa-solid fa-expand"></i></button>
+                        </div>
                         <button id="auwb-open-idea" class="auwb-btn auwb-btn-secondary auwb-idea-trigger" title="컨셉 아이디어">
                             <i class="fa-solid fa-lightbulb"></i>
                         </button>
@@ -50,11 +53,17 @@
                     <div id="auwb-advanced-gen" class="auwb-collapse-body" style="display:none;">
                         <div class="auwb-input-group">
                             <label><i class="fa-solid fa-bookmark"></i> 레퍼런스 / 영감</label>
-                            <textarea id="auwb-reference" class="auwb-textarea" rows="2" placeholder="참고할 작품, 분위기, 영감… (예: 해리포터 분위기 + 카페 일상물)"></textarea>
+                            <div class="auwb-textarea-wrap">
+                                <textarea id="auwb-reference" class="auwb-textarea" rows="2" placeholder="참고할 작품, 분위기, 영감… (예: 해리포터 분위기 + 카페 일상물)"></textarea>
+                                <button class="auwb-expand-btn" data-target-ta="auwb-reference" title="확대 보기"><i class="fa-solid fa-expand"></i></button>
+                            </div>
                         </div>
                         <div class="auwb-input-group">
                             <label><i class="fa-solid fa-heart"></i> 캐릭터 관계 설정</label>
-                            <textarea id="auwb-relationship" class="auwb-textarea" rows="2" placeholder="캐릭터 간 관계… (예: 라이벌이지만 서로 의지하는 관계, 소꿉친구)"></textarea>
+                            <div class="auwb-textarea-wrap">
+                                <textarea id="auwb-relationship" class="auwb-textarea" rows="2" placeholder="캐릭터 간 관계… (예: 라이벌이지만 서로 의지하는 관계, 소꿉친구)"></textarea>
+                                <button class="auwb-expand-btn" data-target-ta="auwb-relationship" title="확대 보기"><i class="fa-solid fa-expand"></i></button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -82,9 +91,11 @@
                         </div>
                         <div class="auwb-option-group">
                             <label>원작 반영</label>
-                            <div class="auwb-btn-toggle">
-                                <button id="auwb-opt-original-break" class="auwb-toggle-btn active">재해석</button>
-                                <button id="auwb-opt-original-keep" class="auwb-toggle-btn">유지</button>
+                            <div class="auwb-btn-toggle auwb-btn-toggle-wrap">
+                                <button id="auwb-opt-original-break" class="auwb-toggle-btn">완전 재해석</button>
+                                <button id="auwb-opt-original-loose" class="auwb-toggle-btn active">느슨한 참고</button>
+                                <button id="auwb-opt-original-core" class="auwb-toggle-btn">핵심만 유지</button>
+                                <button id="auwb-opt-original-keep" class="auwb-toggle-btn">충실 유지</button>
                             </div>
                         </div>
                         <div class="auwb-option-group">
@@ -123,6 +134,23 @@
                                 <button id="auwb-opt-outputVolume-long" class="auwb-toggle-btn">길게</button>
                                 <button id="auwb-opt-outputVolume-very_long" class="auwb-toggle-btn">매우 길게</button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mood Presets (톤/무드 프리셋) -->
+                <div class="auwb-section">
+                    <h4 class="auwb-collapse-trigger" data-target="auwb-mood-presets-body">
+                        <i class="fa-solid fa-palette"></i> 무드 프리셋
+                        <i class="fa-solid fa-chevron-down auwb-collapse-icon"></i>
+                    </h4>
+                    <div id="auwb-mood-presets-body" class="auwb-collapse-body" style="display:none;">
+                        <div id="auwb-mood-preset-btns" class="auwb-mood-preset-grid"></div>
+                        <div class="auwb-input-row" style="margin-top:8px;">
+                            <div class="auwb-input-group" style="flex:1;margin-bottom:0;">
+                                <input type="text" id="auwb-mood-preset-name" class="auwb-input" placeholder="프리셋 이름…" maxlength="30">
+                            </div>
+                            <button id="auwb-save-mood-preset" class="auwb-btn auwb-btn-secondary auwb-btn-sm"><i class="fa-solid fa-plus"></i> 현재 설정 저장</button>
                         </div>
                     </div>
                 </div>
@@ -224,7 +252,10 @@
 
                 <div class="auwb-section">
                     <h4><i class="fa-solid fa-music"></i> 장르 프롬프트</h4>
-                    <textarea id="auwb-genre-prompt" class="auwb-textarea" rows="3" placeholder="장르/분위기 프롬프트…"></textarea>
+                    <div class="auwb-textarea-wrap">
+                        <textarea id="auwb-genre-prompt" class="auwb-textarea" rows="3" placeholder="장르/분위기 프롬프트…"></textarea>
+                        <button class="auwb-expand-btn" data-target-ta="auwb-genre-prompt" title="확대 보기"><i class="fa-solid fa-expand"></i></button>
+                    </div>
                     <div class="auwb-btn-group">
                         <button id="auwb-generate-genre-btn" class="auwb-btn auwb-btn-secondary auwb-btn-sm">
                             <i class="fa-solid fa-magic"></i> 자동 생성
@@ -239,8 +270,11 @@
             <!-- ======== WORLD TAB ======== -->
             <div id="auwb-tab-world" class="auwb-tab-content" style="display:none;">
                 <div class="auwb-section">
-                    <h4><i class="fa-solid fa-earth-americas"></i> 세계관 설정</h4>
-                    <textarea id="auwb-world-setting-content" class="auwb-textarea" rows="10" placeholder="세계관 설정이 여기에 표시됩니다…"></textarea>
+                    <h4><i class="fa-solid fa-earth-americas"></i> 세계관 배경</h4>
+                    <div class="auwb-textarea-wrap">
+                        <textarea id="auwb-world-setting-content" class="auwb-textarea" rows="8" placeholder="세계관 배경 설정이 여기에 표시됩니다…"></textarea>
+                        <button class="auwb-expand-btn" data-target-ta="auwb-world-setting-content" title="확대 보기"><i class="fa-solid fa-expand"></i></button>
+                    </div>
                     <div class="auwb-btn-group">
                         <button id="auwb-save-world" class="auwb-btn auwb-btn-primary auwb-btn-sm">
                             <i class="fa-solid fa-floppy-disk"></i> 저장
@@ -257,6 +291,44 @@
                     </div>
                 </div>
 
+                <div class="auwb-section">
+                    <h4><i class="fa-solid fa-mug-hot"></i> 일상/문화</h4>
+                    <div class="auwb-textarea-wrap">
+                        <textarea id="auwb-world-life-content" class="auwb-textarea" rows="6" placeholder="사회 규범, 일상, 문화적 특징…"></textarea>
+                        <button class="auwb-expand-btn" data-target-ta="auwb-world-life-content" title="확대 보기"><i class="fa-solid fa-expand"></i></button>
+                    </div>
+                    <div class="auwb-btn-group">
+                        <button id="auwb-regen-worldLife" class="auwb-btn auwb-btn-secondary auwb-btn-sm">
+                            <i class="fa-solid fa-rotate"></i> 재생성
+                        </button>
+                        <div class="auwb-refine-dropdown">
+                            <button class="auwb-btn auwb-btn-secondary auwb-btn-sm auwb-refine-trigger" data-section="worldLife">
+                                <i class="fa-solid fa-wand-sparkles"></i> 리파인 <i class="fa-solid fa-caret-down"></i>
+                            </button>
+                            <div class="auwb-refine-menu" style="display:none;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="auwb-section">
+                    <h4><i class="fa-solid fa-gears"></i> 특수 설정</h4>
+                    <div class="auwb-textarea-wrap">
+                        <textarea id="auwb-world-rules-content" class="auwb-textarea" rows="6" placeholder="마법/기술 규칙, 권력 구조, 금기…"></textarea>
+                        <button class="auwb-expand-btn" data-target-ta="auwb-world-rules-content" title="확대 보기"><i class="fa-solid fa-expand"></i></button>
+                    </div>
+                    <div class="auwb-btn-group">
+                        <button id="auwb-regen-worldRules" class="auwb-btn auwb-btn-secondary auwb-btn-sm">
+                            <i class="fa-solid fa-rotate"></i> 재생성
+                        </button>
+                        <div class="auwb-refine-dropdown">
+                            <button class="auwb-btn auwb-btn-secondary auwb-btn-sm auwb-refine-trigger" data-section="worldRules">
+                                <i class="fa-solid fa-wand-sparkles"></i> 리파인 <i class="fa-solid fa-caret-down"></i>
+                            </button>
+                            <div class="auwb-refine-menu" style="display:none;"></div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- D — Custom Section Content Area -->
                 <div id="auwb-custom-sections-content"></div>
             </div>
@@ -264,8 +336,11 @@
             <!-- ======== CHARACTERS TAB ======== -->
             <div id="auwb-tab-characters" class="auwb-tab-content" style="display:none;">
                 <div class="auwb-section">
-                    <h4><i class="fa-solid fa-user"></i> <span class="auwb-char-name">{{char}}</span> 설정</h4>
-                    <textarea id="auwb-char-setting-content" class="auwb-textarea" rows="6" placeholder="캐릭터 AU 설정…"></textarea>
+                    <h4><i class="fa-solid fa-user"></i> <span class="auwb-char-name">{{char}}</span> 역할/설정</h4>
+                    <div class="auwb-textarea-wrap">
+                        <textarea id="auwb-char-setting-content" class="auwb-textarea" rows="5" placeholder="캐릭터 AU 역할/외적 설정…"></textarea>
+                        <button class="auwb-expand-btn" data-target-ta="auwb-char-setting-content" title="확대 보기"><i class="fa-solid fa-expand"></i></button>
+                    </div>
                     <div class="auwb-btn-group">
                         <button id="auwb-regen-char" class="auwb-btn auwb-btn-secondary auwb-btn-sm">
                             <i class="fa-solid fa-rotate"></i> 재생성
@@ -279,8 +354,29 @@
                     </div>
                 </div>
                 <div class="auwb-section">
-                    <h4><i class="fa-solid fa-user-pen"></i> <span class="auwb-user-name">{{user}}</span> 설정</h4>
-                    <textarea id="auwb-user-setting-content" class="auwb-textarea" rows="6" placeholder="유저 AU 설정…"></textarea>
+                    <h4><i class="fa-solid fa-masks-theater"></i> <span class="auwb-char-name">{{char}}</span> 성격/내면</h4>
+                    <div class="auwb-textarea-wrap">
+                        <textarea id="auwb-char-personality-content" class="auwb-textarea" rows="5" placeholder="캐릭터 성격, 내면, 모순, 숨겨진 욕망…"></textarea>
+                        <button class="auwb-expand-btn" data-target-ta="auwb-char-personality-content" title="확대 보기"><i class="fa-solid fa-expand"></i></button>
+                    </div>
+                    <div class="auwb-btn-group">
+                        <button id="auwb-regen-charPersonality" class="auwb-btn auwb-btn-secondary auwb-btn-sm">
+                            <i class="fa-solid fa-rotate"></i> 재생성
+                        </button>
+                        <div class="auwb-refine-dropdown">
+                            <button class="auwb-btn auwb-btn-secondary auwb-btn-sm auwb-refine-trigger" data-section="charPersonality">
+                                <i class="fa-solid fa-wand-sparkles"></i> 리파인 <i class="fa-solid fa-caret-down"></i>
+                            </button>
+                            <div class="auwb-refine-menu" style="display:none;"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="auwb-section">
+                    <h4><i class="fa-solid fa-user-pen"></i> <span class="auwb-user-name">{{user}}</span> 역할/설정</h4>
+                    <div class="auwb-textarea-wrap">
+                        <textarea id="auwb-user-setting-content" class="auwb-textarea" rows="5" placeholder="유저 AU 역할/외적 설정…"></textarea>
+                        <button class="auwb-expand-btn" data-target-ta="auwb-user-setting-content" title="확대 보기"><i class="fa-solid fa-expand"></i></button>
+                    </div>
                     <div class="auwb-btn-group">
                         <button id="auwb-regen-user" class="auwb-btn auwb-btn-secondary auwb-btn-sm">
                             <i class="fa-solid fa-rotate"></i> 재생성
@@ -293,6 +389,63 @@
                         </div>
                     </div>
                 </div>
+                <div class="auwb-section">
+                    <h4><i class="fa-solid fa-masks-theater"></i> <span class="auwb-user-name">{{user}}</span> 성격/내면</h4>
+                    <div class="auwb-textarea-wrap">
+                        <textarea id="auwb-user-personality-content" class="auwb-textarea" rows="5" placeholder="유저 성격, 내면, 동기…"></textarea>
+                        <button class="auwb-expand-btn" data-target-ta="auwb-user-personality-content" title="확대 보기"><i class="fa-solid fa-expand"></i></button>
+                    </div>
+                    <div class="auwb-btn-group">
+                        <button id="auwb-regen-userPersonality" class="auwb-btn auwb-btn-secondary auwb-btn-sm">
+                            <i class="fa-solid fa-rotate"></i> 재생성
+                        </button>
+                        <div class="auwb-refine-dropdown">
+                            <button class="auwb-btn auwb-btn-secondary auwb-btn-sm auwb-refine-trigger" data-section="userPersonality">
+                                <i class="fa-solid fa-wand-sparkles"></i> 리파인 <i class="fa-solid fa-caret-down"></i>
+                            </button>
+                            <div class="auwb-refine-menu" style="display:none;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <hr class="auwb-divider">
+                <div class="auwb-section">
+                    <h4><i class="fa-solid fa-heart-pulse"></i> <span class="auwb-char-name">{{char}}</span> &amp; <span class="auwb-user-name">{{user}}</span> 관계</h4>
+                    <div class="auwb-textarea-wrap">
+                        <textarea id="auwb-char-relation-content" class="auwb-textarea" rows="5" placeholder="두 캐릭터의 현재 관계, 역학, 긴장감…"></textarea>
+                        <button class="auwb-expand-btn" data-target-ta="auwb-char-relation-content" title="확대 보기"><i class="fa-solid fa-expand"></i></button>
+                    </div>
+                    <div class="auwb-btn-group">
+                        <button id="auwb-regen-charRelation" class="auwb-btn auwb-btn-secondary auwb-btn-sm">
+                            <i class="fa-solid fa-rotate"></i> 재생성
+                        </button>
+                        <div class="auwb-refine-dropdown">
+                            <button class="auwb-btn auwb-btn-secondary auwb-btn-sm auwb-refine-trigger" data-section="charRelation">
+                                <i class="fa-solid fa-wand-sparkles"></i> 리파인 <i class="fa-solid fa-caret-down"></i>
+                            </button>
+                            <div class="auwb-refine-menu" style="display:none;"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="auwb-section">
+                    <h4><i class="fa-solid fa-clock-rotate-left"></i> <span class="auwb-char-name">{{char}}</span> &amp; <span class="auwb-user-name">{{user}}</span> 과거사</h4>
+                    <div class="auwb-textarea-wrap">
+                        <textarea id="auwb-char-history-content" class="auwb-textarea" rows="5" placeholder="두 캐릭터의 공유된 과거, 만남, 사건들…"></textarea>
+                        <button class="auwb-expand-btn" data-target-ta="auwb-char-history-content" title="확대 보기"><i class="fa-solid fa-expand"></i></button>
+                    </div>
+                    <div class="auwb-btn-group">
+                        <button id="auwb-regen-charHistory" class="auwb-btn auwb-btn-secondary auwb-btn-sm">
+                            <i class="fa-solid fa-rotate"></i> 재생성
+                        </button>
+                        <div class="auwb-refine-dropdown">
+                            <button class="auwb-btn auwb-btn-secondary auwb-btn-sm auwb-refine-trigger" data-section="charHistory">
+                                <i class="fa-solid fa-wand-sparkles"></i> 리파인 <i class="fa-solid fa-caret-down"></i>
+                            </button>
+                            <div class="auwb-refine-menu" style="display:none;"></div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="auwb-btn-group">
                     <button id="auwb-save-characters" class="auwb-btn auwb-btn-primary">
                         <i class="fa-solid fa-floppy-disk"></i> 캐릭터 설정 저장
@@ -303,7 +456,10 @@
 
                 <div class="auwb-section">
                     <h4><i class="fa-solid fa-shirt"></i> <span class="auwb-char-name">{{char}}</span> 복장</h4>
-                    <textarea id="auwb-char-style-content" class="auwb-textarea" rows="4" placeholder="캐릭터 복장/외모…"></textarea>
+                    <div class="auwb-textarea-wrap">
+                        <textarea id="auwb-char-style-content" class="auwb-textarea" rows="4" placeholder="캐릭터 복장/외모…"></textarea>
+                        <button class="auwb-expand-btn" data-target-ta="auwb-char-style-content" title="확대 보기"><i class="fa-solid fa-expand"></i></button>
+                    </div>
                     <div class="auwb-btn-group">
                         <button id="auwb-regen-char-clothing" class="auwb-btn auwb-btn-secondary auwb-btn-sm">
                             <i class="fa-solid fa-rotate"></i> 재생성
@@ -318,7 +474,10 @@
                 </div>
                 <div class="auwb-section">
                     <h4><i class="fa-solid fa-shirt"></i> <span class="auwb-user-name">{{user}}</span> 복장</h4>
-                    <textarea id="auwb-user-style-content" class="auwb-textarea" rows="4" placeholder="유저 복장/외모…"></textarea>
+                    <div class="auwb-textarea-wrap">
+                        <textarea id="auwb-user-style-content" class="auwb-textarea" rows="4" placeholder="유저 복장/외모…"></textarea>
+                        <button class="auwb-expand-btn" data-target-ta="auwb-user-style-content" title="확대 보기"><i class="fa-solid fa-expand"></i></button>
+                    </div>
                     <div class="auwb-btn-group">
                         <button id="auwb-regen-user-clothing" class="auwb-btn auwb-btn-secondary auwb-btn-sm">
                             <i class="fa-solid fa-rotate"></i> 재생성
@@ -455,6 +614,7 @@
                         <button id="auwb-export-lorebook-direct" class="auwb-btn auwb-btn-secondary auwb-btn-sm"><i class="fa-solid fa-book-open"></i> WI 직접 생성</button>
                     </div>
                     <div class="auwb-btn-group" style="margin-top:8px;">
+                        <button id="auwb-consistency-check" class="auwb-btn auwb-btn-secondary auwb-btn-sm"><i class="fa-solid fa-magnifying-glass-chart"></i> 일관성 검증</button>
                         <button id="auwb-export" class="auwb-btn auwb-btn-secondary auwb-btn-sm"><i class="fa-solid fa-file-export"></i> 내보내기</button>
                         <button id="auwb-import" class="auwb-btn auwb-btn-secondary auwb-btn-sm"><i class="fa-solid fa-file-import"></i> 가져오기</button>
                         <input type="file" id="auwb-import-file" accept=".json" style="display:none;">
@@ -493,43 +653,67 @@
 
                 <div class="auwb-section">
                     <h4>초기 생성 프롬프트</h4>
-                    <textarea id="auwb-custom-initial-prompt" class="auwb-textarea auwb-textarea-mono" rows="6" placeholder="기본 템플릿 사용 중…"></textarea>
+                    <div class="auwb-textarea-wrap">
+                        <textarea id="auwb-custom-initial-prompt" class="auwb-textarea auwb-textarea-mono" rows="6" placeholder="기본 템플릿 사용 중…"></textarea>
+                        <button class="auwb-expand-btn" data-target-ta="auwb-custom-initial-prompt" title="확대 보기"><i class="fa-solid fa-expand"></i></button>
+                    </div>
                     <button id="auwb-reset-initial-prompt" class="auwb-btn auwb-btn-secondary auwb-btn-sm"><i class="fa-solid fa-rotate-left"></i> 기본값</button>
                 </div>
                 <div class="auwb-section">
                     <h4>업데이트 프롬프트</h4>
-                    <textarea id="auwb-custom-update-prompt" class="auwb-textarea auwb-textarea-mono" rows="6" placeholder="기본 템플릿 사용 중…"></textarea>
+                    <div class="auwb-textarea-wrap">
+                        <textarea id="auwb-custom-update-prompt" class="auwb-textarea auwb-textarea-mono" rows="6" placeholder="기본 템플릿 사용 중…"></textarea>
+                        <button class="auwb-expand-btn" data-target-ta="auwb-custom-update-prompt" title="확대 보기"><i class="fa-solid fa-expand"></i></button>
+                    </div>
                     <button id="auwb-reset-update-prompt" class="auwb-btn auwb-btn-secondary auwb-btn-sm"><i class="fa-solid fa-rotate-left"></i> 기본값</button>
                 </div>
                 <div class="auwb-section">
                     <h4>장르 생성 프롬프트</h4>
-                    <textarea id="auwb-custom-genre-prompt" class="auwb-textarea auwb-textarea-mono" rows="4" placeholder="기본 템플릿 사용 중…"></textarea>
+                    <div class="auwb-textarea-wrap">
+                        <textarea id="auwb-custom-genre-prompt" class="auwb-textarea auwb-textarea-mono" rows="4" placeholder="기본 템플릿 사용 중…"></textarea>
+                        <button class="auwb-expand-btn" data-target-ta="auwb-custom-genre-prompt" title="확대 보기"><i class="fa-solid fa-expand"></i></button>
+                    </div>
                     <button id="auwb-reset-genre-prompt-tmpl" class="auwb-btn auwb-btn-secondary auwb-btn-sm"><i class="fa-solid fa-rotate-left"></i> 기본값</button>
                 </div>
                 <div class="auwb-section">
                     <h4>섹션 재생성 프롬프트</h4>
-                    <textarea id="auwb-custom-section-prompt" class="auwb-textarea auwb-textarea-mono" rows="4" placeholder="기본 템플릿 사용 중…"></textarea>
+                    <div class="auwb-textarea-wrap">
+                        <textarea id="auwb-custom-section-prompt" class="auwb-textarea auwb-textarea-mono" rows="4" placeholder="기본 템플릿 사용 중…"></textarea>
+                        <button class="auwb-expand-btn" data-target-ta="auwb-custom-section-prompt" title="확대 보기"><i class="fa-solid fa-expand"></i></button>
+                    </div>
                     <button id="auwb-reset-section-prompt" class="auwb-btn auwb-btn-secondary auwb-btn-sm"><i class="fa-solid fa-rotate-left"></i> 기본값</button>
                 </div>
                 <div class="auwb-section">
                     <h4>스마트 분석 프롬프트</h4>
-                    <textarea id="auwb-custom-analysis-prompt" class="auwb-textarea auwb-textarea-mono" rows="4" placeholder="기본 템플릿 사용 중…"></textarea>
+                    <div class="auwb-textarea-wrap">
+                        <textarea id="auwb-custom-analysis-prompt" class="auwb-textarea auwb-textarea-mono" rows="4" placeholder="기본 템플릿 사용 중…"></textarea>
+                        <button class="auwb-expand-btn" data-target-ta="auwb-custom-analysis-prompt" title="확대 보기"><i class="fa-solid fa-expand"></i></button>
+                    </div>
                     <button id="auwb-reset-analysis-prompt" class="auwb-btn auwb-btn-secondary auwb-btn-sm"><i class="fa-solid fa-rotate-left"></i> 기본값</button>
                 </div>
                 <!-- F5: Brainstorm/Refine/What-If custom prompts -->
                 <div class="auwb-section">
                     <h4>브레인스톰 프롬프트</h4>
-                    <textarea id="auwb-custom-brainstorm-prompt" class="auwb-textarea auwb-textarea-mono" rows="4" placeholder="기본 템플릿 사용 중…"></textarea>
+                    <div class="auwb-textarea-wrap">
+                        <textarea id="auwb-custom-brainstorm-prompt" class="auwb-textarea auwb-textarea-mono" rows="4" placeholder="기본 템플릿 사용 중…"></textarea>
+                        <button class="auwb-expand-btn" data-target-ta="auwb-custom-brainstorm-prompt" title="확대 보기"><i class="fa-solid fa-expand"></i></button>
+                    </div>
                     <button id="auwb-reset-brainstorm-prompt" class="auwb-btn auwb-btn-secondary auwb-btn-sm"><i class="fa-solid fa-rotate-left"></i> 기본값</button>
                 </div>
                 <div class="auwb-section">
                     <h4>리파인 프롬프트</h4>
-                    <textarea id="auwb-custom-refine-prompt" class="auwb-textarea auwb-textarea-mono" rows="4" placeholder="기본 템플릿 사용 중…"></textarea>
+                    <div class="auwb-textarea-wrap">
+                        <textarea id="auwb-custom-refine-prompt" class="auwb-textarea auwb-textarea-mono" rows="4" placeholder="기본 템플릿 사용 중…"></textarea>
+                        <button class="auwb-expand-btn" data-target-ta="auwb-custom-refine-prompt" title="확대 보기"><i class="fa-solid fa-expand"></i></button>
+                    </div>
                     <button id="auwb-reset-refine-prompt" class="auwb-btn auwb-btn-secondary auwb-btn-sm"><i class="fa-solid fa-rotate-left"></i> 기본값</button>
                 </div>
                 <div class="auwb-section">
                     <h4>What-If 프롬프트</h4>
-                    <textarea id="auwb-custom-whatif-prompt" class="auwb-textarea auwb-textarea-mono" rows="4" placeholder="기본 템플릿 사용 중…"></textarea>
+                    <div class="auwb-textarea-wrap">
+                        <textarea id="auwb-custom-whatif-prompt" class="auwb-textarea auwb-textarea-mono" rows="4" placeholder="기본 템플릿 사용 중…"></textarea>
+                        <button class="auwb-expand-btn" data-target-ta="auwb-custom-whatif-prompt" title="확대 보기"><i class="fa-solid fa-expand"></i></button>
+                    </div>
                     <button id="auwb-reset-whatif-prompt" class="auwb-btn auwb-btn-secondary auwb-btn-sm"><i class="fa-solid fa-rotate-left"></i> 기본값</button>
                 </div>
                 <div class="auwb-btn-group">
@@ -569,10 +753,15 @@
     <!-- C — Diff Modal -->
     <div id="auwb-diff-modal" class="auwb-modal" style="display:none;">
         <div class="auwb-modal-overlay"></div>
-        <div class="auwb-modal-content" style="max-width:850px;">
+        <div class="auwb-modal-content" style="max-width:900px;">
             <div class="auwb-modal-header">
                 <h4><i class="fa-solid fa-code-compare"></i> 변경 비교</h4>
-                <button id="auwb-diff-close" class="auwb-modal-close"><i class="fa-solid fa-xmark"></i></button>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <button id="auwb-diff-mode-toggle" class="auwb-btn auwb-btn-secondary auwb-btn-sm" title="보기 모드 전환">
+                        <i class="fa-solid fa-columns"></i> 나란히 보기
+                    </button>
+                    <button id="auwb-diff-close" class="auwb-modal-close"><i class="fa-solid fa-xmark"></i></button>
+                </div>
             </div>
             <div class="auwb-modal-body">
                 <div id="auwb-diff-content" class="auwb-diff-content"></div>
@@ -683,8 +872,30 @@
                     <button id="auwb-slot-editor-add" class="auwb-btn auwb-btn-primary auwb-btn-sm"><i class="fa-solid fa-plus"></i> 추가</button>
                 </div>
                 <p class="auwb-hint" style="margin-top:8px;"><i class="fa-solid fa-lock"></i> 기본 항목 / 내가 추가한 항목은 <i class="fa-solid fa-trash-can"></i>로 삭제</p>
+                <div class="auwb-btn-group" style="margin-top:8px;">
+                    <button id="auwb-slot-export" class="auwb-btn auwb-btn-secondary auwb-btn-sm"><i class="fa-solid fa-file-export"></i> 내보내기</button>
+                    <button id="auwb-slot-import" class="auwb-btn auwb-btn-secondary auwb-btn-sm"><i class="fa-solid fa-file-import"></i> 불러오기</button>
+                    <input type="file" id="auwb-slot-import-file" accept=".json" style="display:none;">
+                </div>
             </div>
 
+        </div>
+    </div>
+</div>
+
+<!-- Expand/Fullscreen Modal for textarea viewing on mobile -->
+<div id="auwb-expand-modal" class="auwb-modal" style="display:none;">
+    <div class="auwb-modal-overlay"></div>
+    <div class="auwb-modal-content auwb-expand-modal-content">
+        <div class="auwb-modal-header">
+            <h4 id="auwb-expand-title"><i class="fa-solid fa-expand"></i> 확대 보기</h4>
+            <button id="auwb-expand-close" class="auwb-modal-close"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="auwb-modal-body" style="padding:8px;">
+            <textarea id="auwb-expand-textarea" class="auwb-textarea auwb-expand-ta"></textarea>
+        </div>
+        <div class="auwb-modal-footer" style="padding:8px 16px 12px;display:flex;justify-content:flex-end;">
+            <button id="auwb-expand-save" class="auwb-btn auwb-btn-primary auwb-btn-sm"><i class="fa-solid fa-check"></i> 적용 후 닫기</button>
         </div>
     </div>
 </div>
@@ -705,6 +916,20 @@
                     <i class="fa-solid fa-check"></i> 선택 적용
                 </button>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Consistency Check Modal -->
+<div id="auwb-consistency-modal" class="auwb-modal" style="display:none;">
+    <div class="auwb-modal-overlay"></div>
+    <div class="auwb-modal-content" style="max-width:700px;">
+        <div class="auwb-modal-header">
+            <h4><i class="fa-solid fa-magnifying-glass-chart"></i> 일관성 검증 결과</h4>
+            <button id="auwb-consistency-close" class="auwb-modal-close"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="auwb-modal-body">
+            <div id="auwb-consistency-result" class="auwb-consistency-result"></div>
         </div>
     </div>
 </div>
