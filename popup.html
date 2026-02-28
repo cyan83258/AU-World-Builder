@@ -33,7 +33,12 @@
             <div id="auwb-tab-generate" class="auwb-tab-content" style="display:block;">
                 <div class="auwb-section">
                     <h4><i class="fa-solid fa-lightbulb"></i> AU 컨셉</h4>
-                    <textarea id="auwb-au-concept" class="auwb-textarea" rows="3" placeholder="예: 현대 카페 AU, 판타지 학원 AU…"></textarea>
+                    <div class="auwb-concept-row">
+                        <textarea id="auwb-au-concept" class="auwb-textarea" rows="3" placeholder="예: 현대 카페 AU, 판타지 학원 AU…"></textarea>
+                        <button id="auwb-open-idea" class="auwb-btn auwb-btn-secondary auwb-idea-trigger" title="컨셉 아이디어">
+                            <i class="fa-solid fa-lightbulb"></i>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- #1 Reference / #10 Relationship — collapsible advanced -->
@@ -608,6 +613,78 @@
                 <button id="auwb-prompt-cancel" class="auwb-btn auwb-btn-secondary auwb-btn-sm">취소</button>
                 <button id="auwb-prompt-ok" class="auwb-btn auwb-btn-primary auwb-btn-sm">확인</button>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Concept Idea Modal -->
+<div id="auwb-idea-modal" class="auwb-modal" style="display:none;">
+    <div class="auwb-modal-overlay"></div>
+    <div class="auwb-modal-content" style="max-width:680px;">
+        <div class="auwb-modal-header">
+            <h4><i class="fa-solid fa-lightbulb"></i> AU 컨셉 아이디어</h4>
+            <button id="auwb-idea-close" class="auwb-modal-close"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="auwb-modal-body">
+
+            <!-- Tabs: Library / Random Combo / Slot Editor -->
+            <div class="auwb-idea-tabs">
+                <button class="auwb-idea-tab active" data-idea-tab="library"><i class="fa-solid fa-book"></i> 샘플 라이브러리</button>
+                <button class="auwb-idea-tab" data-idea-tab="combo"><i class="fa-solid fa-dice"></i> 랜덤 조합 빌더</button>
+                <button class="auwb-idea-tab" data-idea-tab="custom"><i class="fa-solid fa-list-check"></i> 요소 편집</button>
+            </div>
+
+            <!-- Library Panel -->
+            <div id="auwb-idea-panel-library" class="auwb-idea-panel">
+                <div id="auwb-idea-cat-list" class="auwb-idea-cats"></div>
+                <div id="auwb-idea-sample-list" class="auwb-idea-samples"></div>
+            </div>
+
+            <!-- Combo Panel -->
+            <div id="auwb-idea-panel-combo" class="auwb-idea-panel" style="display:none;">
+                <div class="auwb-combo-slots">
+                    <div class="auwb-combo-slot">
+                        <label>배경</label>
+                        <div id="auwb-combo-setting" class="auwb-combo-value">—</div>
+                    </div>
+                    <div class="auwb-combo-x">×</div>
+                    <div class="auwb-combo-slot">
+                        <label>관계</label>
+                        <div id="auwb-combo-relation" class="auwb-combo-value">—</div>
+                    </div>
+                    <div class="auwb-combo-x">×</div>
+                    <div class="auwb-combo-slot">
+                        <label>반전 요소</label>
+                        <div id="auwb-combo-twist" class="auwb-combo-value">—</div>
+                    </div>
+                </div>
+                <div class="auwb-btn-group" style="margin-top:12px;">
+                    <button id="auwb-combo-roll" class="auwb-btn auwb-btn-primary">
+                        <i class="fa-solid fa-dice"></i> 랜덤 돌리기
+                    </button>
+                    <button id="auwb-combo-use" class="auwb-btn auwb-btn-secondary">
+                        <i class="fa-solid fa-arrow-right"></i> 컨셉에 적용
+                    </button>
+                </div>
+            </div>
+
+            <!-- Slot Editor Panel -->
+            <div id="auwb-idea-panel-custom" class="auwb-idea-panel" style="display:none;">
+                <div class="auwb-slot-editor-header">
+                    <select id="auwb-slot-editor-select" class="auwb-select">
+                        <option value="settings">🎨 배경</option>
+                        <option value="relations">🤝 관계</option>
+                        <option value="twists">🔀 반전 요소</option>
+                    </select>
+                </div>
+                <div id="auwb-slot-editor-list" class="auwb-idea-samples"></div>
+                <div class="auwb-input-row" style="margin-top:8px;">
+                    <input type="text" id="auwb-slot-editor-input" class="auwb-input" placeholder="새 요소 입력…" style="flex:1;">
+                    <button id="auwb-slot-editor-add" class="auwb-btn auwb-btn-primary auwb-btn-sm"><i class="fa-solid fa-plus"></i> 추가</button>
+                </div>
+                <p class="auwb-hint" style="margin-top:8px;"><i class="fa-solid fa-lock"></i> 기본 항목 / 내가 추가한 항목은 <i class="fa-solid fa-trash-can"></i>로 삭제</p>
+            </div>
+
         </div>
     </div>
 </div>
