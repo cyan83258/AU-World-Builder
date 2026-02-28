@@ -97,6 +97,25 @@
                                 <button id="auwb-opt-original-core" class="auwb-toggle-btn">핵심만 유지</button>
                                 <button id="auwb-opt-original-keep" class="auwb-toggle-btn">충실 유지</button>
                             </div>
+                            <!-- Source Detail Fine-Grained Control -->
+                            <div class="auwb-setting-row" style="margin-top:6px;">
+                                <label class="auwb-toggle" style="font-size:0.85em;">
+                                    <input type="checkbox" id="auwb-source-detail-toggle">
+                                    <span>세부 반영 항목 선택</span>
+                                </label>
+                            </div>
+                            <div id="auwb-source-detail-panel" class="auwb-sub-panel" style="display:none; margin-top:4px; padding:6px 8px; border:1px solid var(--SmartThemeBorderColor, #555); border-radius:6px;">
+                                <div style="display:flex; flex-wrap:wrap; gap:6px 12px;">
+                                    <label class="auwb-toggle" style="font-size:0.82em;"><input type="checkbox" data-aspect="name" checked><span>이름</span></label>
+                                    <label class="auwb-toggle" style="font-size:0.82em;"><input type="checkbox" data-aspect="personality" checked><span>성격</span></label>
+                                    <label class="auwb-toggle" style="font-size:0.82em;"><input type="checkbox" data-aspect="age"><span>나이</span></label>
+                                    <label class="auwb-toggle" style="font-size:0.82em;"><input type="checkbox" data-aspect="appearance"><span>외관</span></label>
+                                    <label class="auwb-toggle" style="font-size:0.82em;"><input type="checkbox" data-aspect="abilities"><span>능력/스킬</span></label>
+                                    <label class="auwb-toggle" style="font-size:0.82em;"><input type="checkbox" data-aspect="background"><span>배경/과거</span></label>
+                                    <label class="auwb-toggle" style="font-size:0.82em;"><input type="checkbox" data-aspect="relationships"><span>관계</span></label>
+                                </div>
+                                <p style="font-size:0.75em; color:var(--SmartThemeQuoteColor, #888); margin:4px 0 0;">체크된 항목만 원작에서 반영됩니다.</p>
+                            </div>
                         </div>
                         <div class="auwb-option-group">
                             <label>분위기</label>
