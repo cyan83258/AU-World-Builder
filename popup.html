@@ -239,6 +239,12 @@
                 <!-- Quality controls -->
                 <div class="auwb-section">
                     <h4>설계와 캐릭터 품질</h4>
+                    <div class="auwb-setting-row"><label for="auwb-speed-mode">생성 방식</label><select id="auwb-speed-mode" class="auwb-select"><option value="fast">빠른 생성 (기본 · 본문 1회)</option><option value="thorough">심화 생성 (분석·설계·검증)</option></select></div>
+                    <div class="auwb-setting-row"><label for="auwb-reasoning-effort">추론량</label><select id="auwb-reasoning-effort" class="auwb-select"><option value="low">낮게 (지원되는 연결)</option><option value="auto">현재 연결 설정 유지</option></select></div>
+                    <div class="auwb-setting-row"><label for="auwb-operation-timeout">전체 작업 한도 (초)</label><input type="number" id="auwb-operation-timeout" class="auwb-input" min="30" max="3600" value="480"></div>
+                    <p class="auwb-hint">빠른 모드는 분석·설계·자동 비평을 별도 호출하지 않고 본문에 통합합니다. 원본 세부 필터를 켜면 첫 분석 1회가 추가되며 이후 재사용합니다. 누락 보충은 필요한 경우에만 실행합니다. 아래 심화 옵션은 심화 생성에서 적용됩니다.</p>
+                    <p id="auwb-operation-progress" class="auwb-hint" role="status" aria-live="polite"></p>
+                    <button type="button" id="auwb-recover-draft" class="auwb-btn auwb-btn-secondary auwb-btn-sm">완료된 생성 항목 복구</button>
                     <div class="auwb-setting-row"><span>설계 후보 3개로 시작</span><label class="auwb-toggle"><input type="checkbox" id="auwb-planning-enabled"><span class="auwb-toggle-slider"></span></label></div>
                     <div class="auwb-setting-row"><label for="auwb-plan-selection">설계 선택</label><select id="auwb-plan-selection" class="auwb-select"><option value="auto">추천 설계 자동 선택</option><option value="manual">후보를 보고 직접 선택</option></select></div>
                     <div class="auwb-setting-row"><label for="auwb-user-freedom">{{user}} 설정 범위</label><select id="auwb-user-freedom" class="auwb-select"><option value="role">역할·배경·외형 중심</option><option value="persona">페르소나 성격 유지·보완</option><option value="free">성격·과거까지 자유 재해석</option></select></div>

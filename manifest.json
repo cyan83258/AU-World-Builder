@@ -6,6 +6,6 @@
     "js": "index.js",
     "css": "style.css",
     "author": "User",
-    "version": "3.0.0",
+    "version": "3.0.1",
     "description": "AU generation with character identity extraction, distinct design candidates, token-budgeted stages, completeness repair, quality audits, player agency and chat-safe saves."
 }

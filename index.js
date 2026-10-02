@@ -1,5 +1,5 @@
 /**
- * AU World Builder v3.0 — Entry Point
+ * AU World Builder v3.0.1 — Entry Point
  *
  * Loads all modules from lib/ in dependency order, then initializes.
  * Module architecture:
@@ -57,7 +57,7 @@
      * Load all modules sequentially (order matters), then initialize.
      */
     async function boot() {
-        console.log('[AU-World-Builder] === v3.0 Initializing ===');
+        console.log('[AU-World-Builder] === v3.0.1 Initializing ===');
         try {
             /* Load modules in dependency order */
             await loadScript('core');
@@ -65,6 +65,7 @@
             await loadScript('engine');
             await loadScript('ui');
             await loadScript('quality');
+            window.AUWB.initHostCapabilities();
 
             var A = window.AUWB;
 

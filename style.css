@@ -1224,7 +1224,7 @@
     position: relative;
 }
 .auwb-section-disabled::after {
-    content: '비활?�화';
+    content: '\BE44\D65C\C131\D654';
     position: absolute;
     top: 8px;
     right: 12px;
@@ -1697,7 +1697,7 @@
     white-space: nowrap;
 }
 
-/* ?�?� F8: Content badges ?�?� */
+/*  F8: Content badges  */
 .auwb-content-dot {
     font-size: 10px;
     margin-left: 2px;
@@ -1710,7 +1710,7 @@
     opacity: .5;
 }
 
-/* ?�?� F11: Search inputs ?�?� */
+/*  F11: Search inputs  */
 .auwb-search-input {
     width: 100%;
     padding: 6px 10px;
@@ -1727,7 +1727,7 @@
     border-color: var(--auwb-accent);
 }
 
-/* ?�?� F6: A/B diff panel ?�?� */
+/*  F6: A/B diff panel  */
 .auwb-ab-diff-panel {
     margin-top: 8px;
     padding: 8px;
@@ -1750,7 +1750,7 @@
     color: #f44336;
 }
 
-/* ?�?� F12: Confirm & Prompt modals ?�?� */
+/*  F12: Confirm & Prompt modals  */
 #auwb-confirm-modal,
 #auwb-prompt-modal {
     z-index: 100002;
@@ -1788,7 +1788,7 @@
     justify-content: flex-end;
 }
 
-/* ?�?� Concept Idea Modal ?�?� */
+/*  Concept Idea Modal  */
 .auwb-concept-row {
     display: flex;
     gap: 6px;
