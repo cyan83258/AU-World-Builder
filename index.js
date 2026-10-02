@@ -1,5 +1,5 @@
 /**
- * AU World Builder v2.3 — Entry Point
+ * AU World Builder v3.0 — Entry Point
  *
  * Loads all modules from lib/ in dependency order, then initializes.
  * Module architecture:
@@ -42,7 +42,7 @@
 
         for (var i = 0; i < paths.length; i++) {
             try {
-                var code = await $.get(paths[i]);
+                var code = await $.ajax({ url: paths[i], dataType: 'text', cache: false });
                 (0, eval)(code);                       // indirect eval → global scope
                 console.log('[AU-World-Builder] Loaded: ' + paths[i]);
                 return;
@@ -57,13 +57,14 @@
      * Load all modules sequentially (order matters), then initialize.
      */
     async function boot() {
-        console.log('[AU-World-Builder] === v2.1 Initializing ===');
+        console.log('[AU-World-Builder] === v3.0 Initializing ===');
         try {
             /* Load modules in dependency order */
             await loadScript('core');
             await loadScript('sections');
             await loadScript('engine');
             await loadScript('ui');
+            await loadScript('quality');
 
             var A = window.AUWB;
 
@@ -73,6 +74,7 @@
             await A.loadPopupHTML();
             A.addExtMenuButton();
             A.bindUIEvents();
+            A.initQualityUI();
 
             /* Register SillyTavern event listeners */
             var ok = A.registerPromptInjection();

@@ -2060,3 +2060,10 @@
     gap: 6px;
     margin-bottom: 8px;
 }
+
+/* v3 quality controls */
+.auwb-quality-plan[hidden], #auwb-cancel-operation[hidden] { display: none !important; }
+.auwb-quality-plan { position: fixed; inset: 0; z-index: 1000000; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0,0,0,.65); }
+.auwb-quality-plan-body { width: min(780px, 100%); max-height: 90vh; overflow-y: auto; border-radius: 12px; padding: 20px; color: var(--SmartThemeBodyColor, #eee); background: var(--SmartThemeBlurTintColor, #25252b); }
+.auwb-quality-plan-body p { white-space: pre-line; }
+#auwb-injection-warning:empty { display: none; }

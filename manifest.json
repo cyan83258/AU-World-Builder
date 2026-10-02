@@ -6,6 +6,6 @@
     "js": "index.js",
     "css": "style.css",
     "author": "User",
-    "version": "2.3.0",
-    "description": "Automatically generate AU (Alternate Universe) world settings and character profiles. v2.3: selective section generation, section drag reorder, A/B test generation, What-If branches, custom refine directions, prompt preview, custom API support, performance optimizations."
+    "version": "3.0.0",
+    "description": "AU generation with character identity extraction, distinct design candidates, token-budgeted stages, completeness repair, quality audits, player agency and chat-safe saves."
 }

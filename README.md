@@ -1,98 +1,58 @@
-# AU World Builder
+# AU World Builder 3.0
 
-SillyTavern extension that automatically generates Alternate Universe (AU) world settings and character profiles based on the current chat's {{char}} and {{user}} profiles.
+SillyTavern에서 현재 캐릭터와 사용자 페르소나를 다른 세계관으로 옮겨, 세계·생활·규칙·역할·성격·관계·과거·복장을 생성하는 확장 프로그램입니다.
 
-## Features
+## 사용
 
-### 1. AU World Generation
-- Automatically references {{char}} and {{user}} profiles from the current chat
-- Generates AU world settings (Overview) and character adaptations
-- User inputs desired AU concept (e.g., "Dystopian Fantasy SF world", "Vampire fantasy world")
-- Click generate button to create complete world and character settings
+1. SillyTavern 페이지를 새로고침하고 캐릭터 채팅에서 AU World Builder를 엽니다.
+2. AU 컨셉, 참고자료, 관계 조건과 생성할 항목을 선택합니다. 잠긴 항목은 AI가 변경하지 않습니다.
+3. **설계와 캐릭터 품질**에서 원본 대화 참조, 사용자 설정 범위, 설계 선택, 품질 검사를 설정합니다.
+4. 생성하면 원본 분석 → 설계 후보 → 출력 예산에 맞춘 본문 → 누락 보충 → 품질 검사 순서로 진행합니다. 후보 직접 선택 모드에서는 화면에 나타난 세 후보 중 하나를 고릅니다.
+5. 결과를 편집하거나 항목별 재생성·리파인·부분 재작성을 사용합니다. 수동 편집은 잠금과 무관하게 가능합니다.
+6. **실제 요청·설계·검토 기록**에서 최근 API에 전달한 프롬프트, 사용 연결/모델, 출력 한도, 선택 설계와 품질 검토를 확인합니다. API 키는 기록하지 않습니다.
 
-### 2. Automatic Prompt Injection
-- Generated world and character settings are automatically injected as input for chat generation
-- Stories are written within the AU world context automatically
+## 생성 품질
 
-### 3. Separate World & Character Management
-- World Setting (Overview) displayed and saved separately
-- Character Settings for {{char}} and {{user}} displayed separately
-- Clothing Styles for each character displayed separately
-- All sections are viewable and editable by the user
+- 원본의 성격·욕구·판단 습관·말투를 속성별 사실로 추출합니다. 예시 대화와 첫 메시지 참조는 끌 수 있습니다.
+- 원본 세부 필터는 캐릭터와 사용자 모두에 적용합니다. 전체 재해석은 원본 추출을 생략하며 이름/역할 표식을 제외한 특징을 새로 만듭니다.
+- 신규 설치의 기본값은 클리셰 구체화와 원본 핵심 성격 유지입니다. 기존 사용자가 선택한 옵션은 덮어쓰지 않습니다.
+- 세 설계 후보는 직업명이나 반전만 달리하지 않고 생활 방식, 제약, 두 사람이 만나는 이유, 시작 상황을 달리하도록 요청합니다. 자동 선택은 모델의 추천을 사용합니다.
+- 사용자 캐릭터는 역할 중심 / 페르소나 유지·보완 / 자유 재해석 중 선택합니다. 미래 행동, 동의와 호감은 확정하지 않습니다.
+- 항목은 문단 수 대신 정보 요건과 출력 목표를 사용합니다. 모든 모드는 최대 출력 예산에 맞춰 나눠 요청합니다.
+- 2-Pass는 별도 개요 형식으로 뼈대를 검증한 뒤 확장합니다. 순차 생성은 세계 → 캐릭터 → 관계/기타 순서로 진행합니다.
+- 선택 생성은 선택하지 않은 기존 설정을 유지하고 문맥으로 참조합니다. 새 AU를 완전히 만들려면 전체 잠금 해제 후 생성할 항목을 모두 선택하세요.
 
-### 4. Auto-Update & Manual Update
-- **Auto-Update**: Automatically updates world and character settings as the story progresses
-  - Configurable update interval (every N messages)
-  - Can be toggled on/off
-- **Manual Update**: Specify message range (e.g., #3 to #6) to update based on specific story sections
+## 결과 검증과 저장
 
-### 5. Custom API Connection
-- Select specific API connection profile for this extension
-- Supports SillyTavern's Connection Manager profiles
-- Custom API option (OpenAI-compatible endpoints)
-- API connection test button included
+- 모든 기본/커스텀 항목을 파싱합니다. 정상 태그와 명확한 제목을 합쳐 복구하며, 중복 태그는 거부합니다.
+- 일반 설명문이나 미완성 태그를 세계관으로 저장하지 않습니다.
+- JSON 옵션은 응답 형식을 JSON으로 요청하는 기능입니다. 제공자의 강제 스키마 지원을 가정하지 않으며, 결과를 다시 검증합니다.
+- 누락·빈 항목·미해결 템플릿은 한 번 보충합니다. 여전히 불완전하면 기존 설정을 덮어쓰지 않습니다.
+- 자기비평은 실제 문제와 해결 지시를 수정에 전달하고, 수정 후 해결 여부를 확인합니다. 검토할 문제가 남으면 기록에 표시합니다.
+- 채팅 전환 또는 작업 중 설정 편집은 오래된 결과의 적용을 막습니다. 자동 저장은 입력 당시 채팅을 대상으로 합니다.
+- AI 작업은 한 번에 하나만 실행합니다. 설정 선택 컨트롤은 진행 중 잠시 비활성화되지만 결과 텍스트를 편집할 수 있습니다. 편집하면 진행 중 결과의 적용은 중단됩니다.
+- API 요청은 순서대로 실행하여 연결 프로필 전환을 보호합니다. SillyTavern 요청은 실제 종료 후 프로필을 복원합니다. 취소/시간 초과 시 지원되는 생성 중지 이벤트를 전달합니다.
 
-### 6. Genre & Tone Prompt
-- Generates appropriate genre and tone prompts based on the AU world
-- Example: For a noir AU, generates "Write in noir, hard-boiled, slice of life, romance genre. Maintain dark tone."
-- Toggle to enable/disable injection with each message
+## 채팅 주입과 업데이트
 
-### 7. Output Format
-All content is generated in English with the following structure:
+- AU 설정과 원본 카드가 충돌할 경우 AU의 세계·직업·과거·상태를 따르는 연속성 지침을 함께 주입합니다.
+- 기본은 원문 주입입니다. **주입 요약 만들기**는 핵심 사실을 유지하는 짧은 버전을 만들고 누락 여부를 검사합니다.
+- 요약 사용 중 원문이 바뀐 항목은 원문으로 주입합니다. 요약을 다시 만들면 최신 요약으로 돌아갑니다.
+- 예상 주입량이 문맥의 25%를 넘으면 안내합니다. 표시되는 토큰 수는 추정치이며, SillyTavern 요청의 문맥 검사는 가능한 경우 설치된 토크나이저를 사용합니다.
+- 자동 업데이트는 마지막으로 처리한 메시지 이후 전체 범위를 분석합니다. 정상 대화 생성이 끝난 뒤 실행하고, 성공한 범위만 처리 위치를 갱신합니다.
+- 업데이트는 확인된 상태 변화만 반영하도록 요청합니다. 기본 규칙·핵심 성격은 일시적 감정이나 대사만으로 변경하지 않습니다.
+- 메시지를 삭제·수정·스와이프해 이미 설정에 반영된 사건을 바꾼 경우, 해당 범위의 수동 업데이트나 변경 전 히스토리 복원을 사용하세요. 설정 변경을 완전한 사건 원장으로 관리하지는 않습니다.
 
-```
-#World Setting
-(2 paragraphs describing the AU world)
+## 연결과 호출량
 
----
-#Character Settings
-##{{char}}
-(2 paragraphs about character's AU adaptation)
+현재 SillyTavern 연결, 선택한 연결 프로필, OpenAI 호환 Custom API를 사용할 수 있습니다. 설치된 SillyTavern의 `generateRaw({ prompt, responseLength, trimNames })`와 이벤트 API에 맞춰 작성했습니다. 지원하지 않는 버전은 명확한 오류를 표시합니다.
 
-##{{user}}
-(2 paragraphs about user's AU adaptation)
+Max Tokens는 두 연결 방식의 요청 출력 한도에 적용됩니다. 설계·원본 분석·검증과 긴 본문 분할은 추가 요청을 사용하므로 이전 버전보다 시간이 오래 걸리고 비용이 늘 수 있습니다. 필요하면 설계 후보, 대화 참조, 품질 검사를 끄거나 짧은 분량을 선택하세요. 품질 검사는 같은 연결의 모델을 사용하며, 창작의 재미나 원본 해석의 정확성을 보장하는 독립 평가자는 아닙니다.
 
-#Character Clothing Styles
-##{{char}}'s style
-(2 paragraphs describing character's clothing)
+## 개발과 검증
 
-##{{user}}'s style
-(2 paragraphs describing user's clothing)
-```
+모듈 로드 순서: `core → sections → engine → ui → quality`. `quality.js`는 공통 입력 구성, 결과 검증, 작업 보호와 현재 생성 파이프라인을 담당합니다. 기존 UI/설정 호환성을 위해 이전 엔진의 공개 인터페이스를 유지합니다.
 
-## Installation
+회귀 검증: `node tests/regression.cjs`. 테스트는 가짜 DOM과 API 응답을 사용하며 실제 API 호출이나 사용자 설정 파일 변경을 하지 않습니다. 실제 브라우저 렌더링과 모델 응답 품질은 별도 확인이 필요합니다.
 
-1. Copy the `AU-World-Builder` folder to your SillyTavern extensions directory:
-   - `data/default-user/extensions/` (for user-specific installation)
-   - or `scripts/extensions/third-party/` (for global installation)
-
-2. Refresh SillyTavern
-
-3. The extension will appear in the Extensions menu as "AU World Builder"
-
-## Usage
-
-1. Open a chat with a character
-2. Click the Extensions menu (puzzle piece icon)
-3. Select "AU World Builder"
-4. Enter your AU concept in the text box
-5. Click "Generate AU World"
-6. Edit the generated content as needed
-7. Enable "Enable AU World Injection" to include settings in chat generation
-
-## Tips
-
-- Be specific with your AU concept for better results
-- You can manually edit any generated section
-- Use the Preview Injection button to see exactly what will be sent to the AI
-- Export your AU data to reuse it later or share with others
-- The Genre Prompt feature helps maintain consistent writing style
-
-## Requirements
-
-- SillyTavern 1.12.0 or higher
-- Working API connection (any supported by SillyTavern)
-
-## Version
-
-1.0.0 - Initial release
+이 변경 전 실행 파일은 별도 백업 ZIP으로 보관했습니다. 확장 파일을 복원해도 이미 저장된 설정 데이터는 자동으로 되돌아가지 않습니다. 설정은 확장의 내보내기·히스토리 기능으로 별도 보관할 수 있습니다.

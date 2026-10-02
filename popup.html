@@ -236,6 +236,23 @@
                     </div>
                 </div>
 
+                <!-- Quality controls -->
+                <div class="auwb-section">
+                    <h4>설계와 캐릭터 품질</h4>
+                    <div class="auwb-setting-row"><span>설계 후보 3개로 시작</span><label class="auwb-toggle"><input type="checkbox" id="auwb-planning-enabled"><span class="auwb-toggle-slider"></span></label></div>
+                    <div class="auwb-setting-row"><label for="auwb-plan-selection">설계 선택</label><select id="auwb-plan-selection" class="auwb-select"><option value="auto">추천 설계 자동 선택</option><option value="manual">후보를 보고 직접 선택</option></select></div>
+                    <div class="auwb-setting-row"><label for="auwb-user-freedom">{{user}} 설정 범위</label><select id="auwb-user-freedom" class="auwb-select"><option value="role">역할·배경·외형 중심</option><option value="persona">페르소나 성격 유지·보완</option><option value="free">성격·과거까지 자유 재해석</option></select></div>
+                    <div class="auwb-setting-row"><span>예시 대화·첫 메시지로 개성 분석</span><label class="auwb-toggle"><input type="checkbox" id="auwb-include-dialogue"><span class="auwb-toggle-slider"></span></label></div>
+                    <div class="auwb-setting-row"><span>품질·일관성 검사와 보정</span><label class="auwb-toggle"><input type="checkbox" id="auwb-quality-audit"><span class="auwb-toggle-slider"></span></label></div>
+                    <div class="auwb-setting-row"><span>항목 응답을 JSON 형식으로 받기</span><label class="auwb-toggle"><input type="checkbox" id="auwb-structured-output"><span class="auwb-toggle-slider"></span></label></div>
+                    <p class="auwb-hint">원본 분석·설계·검증은 추가 호출을 사용합니다. 성격 재해석을 허용해도 플레이어의 미래 행동과 호감은 확정하지 않습니다. 항목 잠금은 모든 AI 수정에서 보호됩니다.</p>
+                    <button type="button" id="auwb-request-record" class="auwb-btn auwb-btn-secondary auwb-btn-sm">실제 요청·설계·검토 기록</button>
+                    <button type="button" id="auwb-cancel-operation" class="auwb-btn auwb-btn-secondary auwb-btn-sm" hidden>진행 중인 작업 취소</button>
+                    <div class="auwb-setting-row"><label for="auwb-injection-mode">채팅에 전달할 설정</label><select id="auwb-injection-mode" class="auwb-select"><option value="full">원문 설정</option><option value="compact">검증된 요약 (변경 항목은 원문)</option></select></div>
+                    <button type="button" id="auwb-build-injection-summary" class="auwb-btn auwb-btn-secondary auwb-btn-sm">주입 요약 만들기</button>
+                    <p id="auwb-injection-warning" class="auwb-hint" role="status"></p>
+                </div>
+
                 <!-- Advanced Generation Modes -->
                 <div class="auwb-section">
                     <h4 class="auwb-collapse-trigger" data-target="auwb-gen-modes-body">
@@ -255,7 +272,7 @@
                             <span>자기비평 자동 개선 <small style="color:var(--auwb-text-muted);">(생성 후 약한 섹션 자동 보강)</small></span>
                             <label class="auwb-toggle"><input type="checkbox" id="auwb-self-critique-toggle"><span class="auwb-toggle-slider"></span></label>
                         </div>
-                        <p class="auwb-hint">2-Pass와 순차 생성은 동시 사용 불가 (순차 생성이 우선). API 호출이 늘어나므로 시간이 더 소요됩니다.</p>
+                        <p class="auwb-hint">2-Pass는 짧은 개요를 검증한 뒤 확장합니다. 순차 생성은 세계→캐릭터→관계 순서입니다. 모든 모드는 출력 예산에 맞춰 분할하고 누락 항목을 보충합니다. 두 모드는 하나만 선택할 수 있습니다.</p>
                     </div>
                 </div>
 
@@ -1024,4 +1041,8 @@
             <div id="auwb-consistency-result" class="auwb-consistency-result"></div>
         </div>
     </div>
+</div>
+
+<div id="auwb-plan-modal" class="auwb-quality-plan" hidden role="dialog" aria-modal="true" aria-labelledby="auwb-plan-title">
+ <div class="auwb-quality-plan-body"><h3 id="auwb-plan-title">AU 설계 방향 선택</h3><p>마음에 드는 작동 방식과 시작 상황을 고르세요.</p><div id="auwb-plan-options"></div><button type="button" id="auwb-plan-cancel" class="auwb-btn auwb-btn-secondary">취소</button></div>
 </div>
